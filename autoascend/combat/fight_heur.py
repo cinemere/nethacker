@@ -15,8 +15,6 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
-        ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
@@ -186,7 +184,7 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(agent, monster):
+                elif is_dangerous_monster(monster):
                     priority += p * 25
                 else:
                     priority += min(p, 1) * 10
@@ -219,7 +217,7 @@ def elbereth_action(agent, monsters):
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(agent, monster):
+        if is_dangerous_monster(monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
