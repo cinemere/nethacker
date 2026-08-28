@@ -764,10 +764,7 @@ class Inventory:
                 wielded_melee_weapon = self.items.main_hand
             valid_combinations.extend([(None, i) for i in items
                                        if i.is_thrown_projectile()
-                                       # hypothesis: a Tourist should throw from its large starting dart stack
-                                       # even though that stack is also selected as its best/wielded melee weapon.
-                                       and ((self.agent.character.role == Character.TOURIST and i.count > 1)
-                                            or (i != best_melee_weapon and i != wielded_melee_weapon))])
+                                       and i != best_melee_weapon and i != wielded_melee_weapon])
 
         return valid_combinations
 
