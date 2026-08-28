@@ -82,8 +82,9 @@ def draw_monster_priority_positive(agent, monster, priority, walkable):
 def draw_monster_priority_negative(agent, monster, priority, walkable):
     _, y, x, mon, _ = monster
 
-    if imminent_death_on_melee(agent, monster) and not mon.mname in WEAK_MONSTERS \
-            and not mon.mname in ONLY_RANGED_SLOW_MONSTERS:
+    # hypothesis: retreating from even nominally weak monsters at the existing imminent-death HP threshold will
+    # stop fragile tourists from continuing losing melee fights and give their ranged kit room to work.
+    if imminent_death_on_melee(agent, monster) and not mon.mname in ONLY_RANGED_SLOW_MONSTERS:
         if mon.mmove <= 12:
             _draw_around(priority, y, x, -10, radius=1)
         else:
