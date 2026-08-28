@@ -184,7 +184,7 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(monster):
+                elif is_dangerous_monster(agent, monster):
                     priority += p * 25
                 else:
                     priority += min(p, 1) * 10
@@ -217,7 +217,7 @@ def elbereth_action(agent, monsters):
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(monster):
+        if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
