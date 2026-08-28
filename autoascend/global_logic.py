@@ -515,9 +515,9 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                # hypothesis: limiting the successful XL6 early-descent policy to lawful Monks avoids their lethal, food-expensive DL1 grind without lowering the safer builds' farming target
-                first_level_target_xl = 6 if self.agent.character.role == Character.MONK and \
-                                             self.agent.character.alignment == Character.LAWFUL else 8
+                # hypothesis: tourists that leave dungeon level 1 at XL3 can turn their starting
+                # ranged kit into food and progression instead of starving during the XL8 grind.
+                first_level_target_xl = 3 if self.agent.character.role == Character.TOURIST else 8
                 condition = lambda: self.agent.blstats.experience_level >= first_level_target_xl
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
                 #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
