@@ -1417,8 +1417,10 @@ class Agent:
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
         if (
-                (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
-                 or self.blstats.hitpoints < 8) and items
+                # hypothesis: using known healing before one-hit range lets potion-equipped fragile builds survive early monsters long enough to reach the next progression milestone.
+                (self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints
+                 or (self.blstats.hitpoints < 12 and
+                     self.blstats.hitpoints < self.blstats.max_hitpoints)) and items
         ):
             yield True
             self.inventory.quaff(items[0])
@@ -1434,9 +1436,7 @@ class Agent:
         if (
                 (self.is_safe_to_pray(500) and
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
-                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 8))
-                # hypothesis: praying before fragile builds enter one-hit range will prevent early deaths
-                # while preserving the prayer timeout for characters that can safely continue fighting.
+                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 6))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True

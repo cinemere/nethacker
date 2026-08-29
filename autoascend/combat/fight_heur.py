@@ -49,10 +49,6 @@ def melee_monster_priority(agent, monsters, monster):
 
 def ranged_priority(agent, dy, dx, monsters):
     ret = 11
-    # hypothesis: prioritizing the Tourist's starting darts over closing for its weak melee attack
-    # will turn early monsters into safe experience and lift the weakest build without affecting others.
-    if agent.character.role == agent.character.TOURIST:
-        ret += 6
 
     closest_mon_dis = float('inf')
     for monster in monsters:
