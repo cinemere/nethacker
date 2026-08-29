@@ -32,6 +32,8 @@ def action_str(agent, action):
         wand = a[3]
         letter = agent.inventory.items.get_letter(wand)
         return f'{priority}z{letter}:{a[1]},{a[2]}'
+    elif a[0] == 'camera':
+        return f'{priority}cam:{a[1]},{a[2]}'
     elif a[0] == 'elbereth':
         return f'{priority:.1f}e'
     elif a[0] == 'wait':
