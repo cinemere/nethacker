@@ -1302,8 +1302,9 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # corpse aging
-        if self.blstats.time - age_turn >= 50 and \
+        # hypothesis: limiting ordinary corpses to 30 turns avoids random early rot and food poisoning while
+        # preserving freshly killed nutrition for food-poor Tourists and Rangers.
+        if self.blstats.time - age_turn >= 30 and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 
@@ -1435,15 +1436,6 @@ class Agent:
                 (self.is_safe_to_pray(500) and
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
                   * self.blstats.max_hitpoints or self.blstats.hitpoints < 6))
-                # hypothesis: a foodless Ranger should pray at WEAK, before fainting can
-                # prevent the emergency strategy from interrupting the level-1 XP grind.
-                or (self.character.role == self.character.RANGER and
-                    not any(item.category == nh.FOOD_CLASS and
-                            item.objs[0].name != 'sprig of wolfsbane' and
-                            (not item.is_corpse() or item.monster_id in [
-                                MON.from_name(name) - nh.GLYPH_MON_OFF for name in ('lizard', 'lichen')])
-                            for item in flatten_items(self.inventory.items)) and
-                    self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.WEAK)
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True
