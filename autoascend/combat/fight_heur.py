@@ -15,6 +15,8 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
+    if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
+        ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
@@ -184,7 +186,7 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(monster):
+                elif is_dangerous_monster(agent, monster):
                     priority += p * 25
                 else:
                     priority += min(p, 1) * 10
@@ -217,12 +219,14 @@ def elbereth_action(agent, monsters):
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(monster):
+        if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
+        # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
+        # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
+        return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
 
@@ -236,18 +240,6 @@ def wait_action(agent, monsters):
 
 def get_available_actions(agent, monsters):
     actions = []
-
-    # hypothesis: a fragile Tourist can turn an adjacent serious fight into an escape by
-    # flashing the starting expensive camera, which is otherwise never used by the bot.
-    if agent.blstats.hitpoints <= max(8, agent.blstats.max_hitpoints * 0.4):
-        camera = next((item for item in agent.inventory.items
-                       if item.is_unambiguous() and item.object.name == 'expensive camera'), None)
-        if camera is not None:
-            for monster in monsters:
-                _, y, x, mon, _ = monster
-                if adjacent((y, x), (agent.blstats.y, agent.blstats.x)) and \
-                        mon.mname not in WEAK_MONSTERS and is_monster_faster(agent, monster):
-                    actions.append((25, ('camera', y - agent.blstats.y, x - agent.blstats.x, camera)))
 
     # melee attack actions
     for monster in monsters:

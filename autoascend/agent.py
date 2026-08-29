@@ -1216,15 +1216,6 @@ class Agent:
                 self.zap(wand, dir)
             return wait_counter
 
-        elif best_action[0] == 'camera':
-            _, dy, dx, camera = best_action
-            with self.atom_operation():
-                self.step(A.Command.APPLY)
-                self.type_text(self.inventory.items.get_letter(camera))
-                self.direction(self.calc_direction(self.blstats.y, self.blstats.x,
-                                                   self.blstats.y + dy, self.blstats.x + dx))
-            return wait_counter
-
         elif best_action[0] == 'pickup':
             if len(best_action) == 2:
                 _, items_to_pickup = best_action
