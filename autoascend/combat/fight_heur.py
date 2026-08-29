@@ -15,6 +15,8 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
+    if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
+        ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
@@ -23,10 +25,6 @@ def melee_monster_priority(agent, monsters, monster):
         ret -= 17
     if 'were' in mon.mname:
         ret += 1
-    # hypothesis: refusing melee with fast, hard-hitting unicorns prevents avoidable deaths
-    # in fragile ranged builds while still allowing the existing ranged combat path.
-    if 'unicorn' in mon.mname:
-        ret -= 100
     # if not wielding_melee_weapon(agent):
     #     ret -= 5
     if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
@@ -188,8 +186,12 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(monster):
+                elif is_dangerous_monster(agent, monster):
                     priority += p * 25
+                    # hypothesis: below half health, spending a known offensive wand charge on an
+                    # adjacent dangerous monster is safer than the currently higher-scored melee attack.
+                    if adjacent((y, x), (agent.blstats.y, agent.blstats.x)) and player_hp_ratio < 0.5:
+                        priority += min(p, 1) * 10
                 else:
                     priority += min(p, 1) * 10
                 targeted_monsters.add((y, x, monster))
@@ -221,7 +223,7 @@ def elbereth_action(agent, monsters):
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(monster):
+        if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
