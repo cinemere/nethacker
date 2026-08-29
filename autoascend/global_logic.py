@@ -515,8 +515,9 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                # hypothesis: Tourists that leave level 1 at XL7 convert their reliably reached XP milestone
-                # into descent progress before the prolonged XL8 grind kills them, while other roles keep the safer target.
+                # hypothesis: Tourists that reach XL7 gain more progression by leaving the sparse first
+                # floor before its long farming phase, while retaining one more safety level than the
+                # previously rejected XL6 exit and leaving stronger roles' established XL8 gate unchanged.
                 condition = lambda: self.agent.blstats.experience_level >= (
                     7 if self.agent.character.role == Character.TOURIST else 8)
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
