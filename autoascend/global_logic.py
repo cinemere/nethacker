@@ -515,7 +515,11 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                condition = lambda: self.agent.blstats.experience_level >= 8
+                # hypothesis: lawful Monks gain more progression by leaving the sparse first floor at XL6,
+                # while retaining XL8 farming for builds that did not benefit from universally early descent.
+                condition = lambda: self.agent.blstats.experience_level >= (
+                    6 if self.agent.character.role == Character.MONK and
+                         self.agent.character.alignment == Character.LAWFUL else 8)
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
                 #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
