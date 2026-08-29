@@ -7,8 +7,7 @@ from scipy import signal
 from ..glyph import G
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
-    ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, INSECTS, WEAK_MONSTERS, \
-    consider_melee_only_ranged_if_hp_full
+    ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
 from .movement_priority import draw_monster_priority_positive, draw_monster_priority_negative
 from .utils import wielding_ranged_weapon, line_dis_from, inside
 
@@ -216,7 +215,9 @@ def elbereth_action(agent, monsters):
         multiplier = np.clip(20 / agent.blstats.hitpoints, 1.0, 1.5)
         if is_monster_faster(agent, monster):
             multiplier *= 2
-        if mon in WEAK_MONSTERS:
+        # hypothesis: recognizing weak monsters by name avoids wasting food and turns hiding on Elbereth
+        # from harmless level-1 prey, letting fragile builds take the easy XP they need to progress.
+        if mon.mname in WEAK_MONSTERS:
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
@@ -328,11 +329,6 @@ def get_priorities(agent):
     for m in monsters:
         draw_monster_priority_negative(agent, m, priority, walkable)
     priority[~walkable] = float('nan')
-
-    # hypothesis: preferring nearby corridor mouths while fighting fast insects prevents ants and bees
-    # from surrounding fragile heroes, without changing positioning in ordinary one-on-one fights.
-    if any(mon.mname in INSECTS for _, _, _, mon, _ in monsters):
-        priority += get_corridors_priority_map(walkable)
 
     # TODO: figure out how to use corridors priority so that it improves the score
     # if len([m for m in monsters if m[3].mname not in chain(ONLY_RANGED_SLOW_MONSTERS, WEAK_MONSTERS)]) >= 4:
