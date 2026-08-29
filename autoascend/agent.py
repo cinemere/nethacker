@@ -1458,9 +1458,19 @@ class Agent:
     def eat_from_inventory(self):
         if self.blstats.hunger_state < Hunger.HUNGRY:
             yield False
-        for item in flatten_items(self.inventory.items):
+        foods = list(flatten_items(self.inventory.items))
+        # hypothesis: deferring slow-to-open tins while ready-to-eat food is available prevents weak heroes,
+        # especially Tourists, from giving nearby monsters many free attacks without sacrificing emergency food.
+        foods.sort(key=lambda item: item.is_unambiguous() and item.object.name == 'tin')
+        for item in foods:
+            # hypothesis: refusing nutritionally tiny eggs (whose species is often hidden) and identified
+            # cockatrice tins as hunger food prevents deterministic petrification without sacrificing useful food.
+            petrifying_food = item.is_unambiguous() and (item.object.name == 'egg' or (
+                item.object.name == 'tin' and item.monster_id is not None and
+                ord(MON.permonst(item.monster_id).mlet) == MON.S_COCKATRICE))
             if item.category == nh.FOOD_CLASS and \
                     item.objs[0].name != 'sprig of wolfsbane' and \
+                    not petrifying_food and \
                     (not item.is_corpse() or
                      item.monster_id in [MON.from_name(n) - nh.GLYPH_MON_OFF for n in ['lizard', 'lichen']]):
                 yield True
