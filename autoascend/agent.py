@@ -1075,9 +1075,7 @@ class Agent:
     def get_visible_monsters(self):
         """ Returns list of tuples (distance, y, x, permonst, monster_glyph)
         """
-        # hypothesis: never targeting shopkeepers by glyph prevents transient peaceful-tracking ambiguity from starting unwinnable fights that erase otherwise strong progression runs
-        mask = self.monster_tracker.monster_mask & ~self.monster_tracker.peaceful_monster_mask & \
-               ~utils.isin(self.glyphs, G.SHOPKEEPER)
+        mask = self.monster_tracker.monster_mask & ~self.monster_tracker.peaceful_monster_mask
         if not mask.any():
             return []
 
