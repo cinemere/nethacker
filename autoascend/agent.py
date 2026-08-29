@@ -1302,10 +1302,8 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # hypothesis: Tourists should stop eating ordinary corpses before the randomized spoilage window,
-        # avoiding lethal food poisoning without denying sturdier, food-hungry builds the same nutrition.
-        corpse_age_limit = 30 if self.character.role == Character.TOURIST else 50
-        if self.blstats.time - age_turn >= corpse_age_limit and \
+        # corpse aging
+        if self.blstats.time - age_turn >= 50 and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 
