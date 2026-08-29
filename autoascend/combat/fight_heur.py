@@ -7,8 +7,7 @@ from scipy import signal
 from ..glyph import G
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
-    ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, INSECTS, WEAK_MONSTERS, \
-    consider_melee_only_ranged_if_hp_full
+    ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
 from .movement_priority import draw_monster_priority_positive, draw_monster_priority_negative
 from .utils import wielding_ranged_weapon, line_dis_from, inside
 
@@ -16,8 +15,6 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
-        ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
@@ -96,6 +93,9 @@ def ranged_priority(agent, dy, dx, monsters):
                 ret -= 6
                 if mon.mname == 'gas spore':  # only gas spore ?
                     ret -= 100
+                # hypothesis: a fragile Tourist adjacent to a monster survives more often by throwing an enchanted starting dart than by using that dart as a low-damage melee weapon.
+                if agent.character.role == agent.character.TOURIST and ammo.objs[0].name == 'dart':
+                    ret += 30
             return ret, y, x, monster[0]
 
 
@@ -187,7 +187,7 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(agent, monster):
+                elif is_dangerous_monster(monster):
                     priority += p * 25
                 else:
                     priority += min(p, 1) * 10
@@ -220,14 +220,12 @@ def elbereth_action(agent, monsters):
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(agent, monster):
+        if is_dangerous_monster(monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
-        # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
-        return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
+        return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
 
@@ -328,11 +326,6 @@ def get_priorities(agent):
     for m in monsters:
         draw_monster_priority_negative(agent, m, priority, walkable)
     priority[~walkable] = float('nan')
-
-    # hypothesis: preferring nearby corridor mouths while fighting fast insects prevents ants and bees
-    # from surrounding fragile heroes, without changing positioning in ordinary one-on-one fights.
-    if any(mon.mname in INSECTS for _, _, _, mon, _ in monsters):
-        priority += get_corridors_priority_map(walkable)
 
     # TODO: figure out how to use corridors priority so that it improves the score
     # if len([m for m in monsters if m[3].mname not in chain(ONLY_RANGED_SLOW_MONSTERS, WEAK_MONSTERS)]) >= 4:
