@@ -1218,12 +1218,13 @@ class Agent:
 
         elif best_action[0] == 'camera':
             _, dy, dx, camera = best_action
-            direction = self.calc_direction(self.blstats.y, self.blstats.x,
-                                            self.blstats.y + dy, self.blstats.x + dx)
             with self.atom_operation():
+                camera = self.inventory.move_to_inventory(camera)
                 self.step(A.Command.APPLY)
                 self.type_text(self.inventory.items.get_letter(camera))
-                self.direction(direction)
+                self.direction(self.calc_direction(self.blstats.y, self.blstats.x,
+                                                   self.blstats.y + dy, self.blstats.x + dx))
+            self._last_camera_turn = self.blstats.time
             return wait_counter
 
         elif best_action[0] == 'pickup':

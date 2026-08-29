@@ -238,26 +238,31 @@ def wait_action(agent, monsters):
     return []
 
 
+def camera_action(agent, monsters):
+    # hypothesis: a fragile hero can use the Tourist's otherwise-idle expensive camera to blind an adjacent
+    # serious attacker, buying safer retreat turns and converting early one-sided fights into XP progress.
+    if agent.blstats.hitpoints > 8 and \
+            agent.blstats.hitpoints >= 0.5 * agent.blstats.max_hitpoints:
+        return []
+    if agent.blstats.time - getattr(agent, '_last_camera_turn', -100) < 10:
+        return []
+
+    cameras = [item for item in agent.inventory.items
+               if item.is_unambiguous() and item.objs[0].name == 'expensive camera'
+               and item.uses != 'no charges']
+    if not cameras:
+        return []
+
+    for monster in monsters:
+        _, y, x, mon, _ = monster
+        if adjacent((y, x), (agent.blstats.y, agent.blstats.x)) and \
+                mon.mname not in WEAK_MONSTERS + ONLY_RANGED_SLOW_MONSTERS:
+            return [(35, ('camera', y - agent.blstats.y, x - agent.blstats.x, cameras[0]))]
+    return []
+
+
 def get_available_actions(agent, monsters):
     actions = []
-
-    # hypothesis: a hurt Tourist survives early adjacent threats more reliably by flashing the
-    # starting expensive camera to blind and scare them before resorting to melee or Elbereth.
-    if agent.character.role == agent.character.TOURIST and \
-            agent.blstats.hitpoints <= 6 and \
-            not agent.character.prop.blind:
-        camera = next((item for item in agent.inventory.items
-                       if item.is_unambiguous() and item.object.name == 'expensive camera' and
-                       item.uses != 'no charge' and
-                       (item.uses is None or int(item.uses.split(':')[1]) > 0)), None)
-        camera_targets = [monster for monster in monsters
-                          if adjacent((monster[1], monster[2]),
-                                      (agent.blstats.y, agent.blstats.x)) and
-                          monster[3].mname not in ONLY_RANGED_SLOW_MONSTERS]
-        if camera is not None and camera_targets:
-            target = max(camera_targets, key=lambda monster: is_dangerous_monster(agent, monster))
-            actions.append((40, ('camera', target[1] - agent.blstats.y,
-                                 target[2] - agent.blstats.x, camera)))
 
     # melee attack actions
     for monster in monsters:
@@ -290,6 +295,7 @@ def get_available_actions(agent, monsters):
 
     actions.extend(elbereth_action(agent, monsters))
     actions.extend(wait_action(agent, monsters))
+    actions.extend(camera_action(agent, monsters))
 
     return actions
 
