@@ -757,10 +757,13 @@ class Inventory:
 
         if throwing:
             best_melee_weapon = None
-            if not allow_best_melee:
+            # hypothesis: allowing Tourists to throw their starting darts even while that stack is their
+            # best/wielded melee weapon exposes their defining early-game attack instead of forcing weak melee.
+            preserve_melee_weapon = self.agent.character.role != Character.TOURIST
+            if not allow_best_melee and preserve_melee_weapon:
                 best_melee_weapon = self.get_best_melee_weapon()
             wielded_melee_weapon = None
-            if not allow_wielded_melee:
+            if not allow_wielded_melee and preserve_melee_weapon:
                 wielded_melee_weapon = self.items.main_hand
             valid_combinations.extend([(None, i) for i in items
                                        if i.is_thrown_projectile()
