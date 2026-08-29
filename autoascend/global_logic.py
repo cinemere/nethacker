@@ -404,13 +404,7 @@ class GlobalLogic:
         if not item.is_corpse() or item.comment == 'old':
             return False
 
-        permonst = MON.permonst(item.monster_id + nh.GLYPH_MON_OFF)
-        # hypothesis: never carrying a petrifying corpse for sacrifice prevents an otherwise
-        # successful ungloved hero from dying immediately while moving it into inventory.
-        if ord(permonst.mlet) == MON.S_COCKATRICE or permonst.mname == 'Medusa':
-            return False
-
-        mname = permonst.mname
+        mname = MON.permonst(item.monster_id + nh.GLYPH_MON_OFF).mname
         if (mname == 'pony' and self.agent.character.role in [Character.KNIGHT, Character.BARBARIAN]) or \
                 (mname == 'kitten' and self.agent.character.role == [Character.BARBARIAN, Character.WIZARD]) or \
                 (mname == 'little dog' and item.naming):  # little dogs are always named
