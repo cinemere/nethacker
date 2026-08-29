@@ -515,10 +515,11 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                # hypothesis: Tourists that reach XL7 gain more progression by descending for richer floors
-                # than by spending thousands more turns exposed to increasingly dangerous level-1 spawns.
-                condition = lambda: self.agent.blstats.experience_level >= \
-                    (7 if self.agent.character.role == Character.TOURIST else 8)
+                # hypothesis: Tourists that have reached XL7 gain more progression by descending
+                # than by remaining on dungeon level 1 for the long, dangerous grind to XL8.
+                condition = lambda: self.agent.blstats.experience_level >= 8 or \
+                    (self.agent.character.role == Character.TOURIST and
+                     self.agent.blstats.experience_level >= 7)
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
                 #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
