@@ -4,7 +4,6 @@ from itertools import product
 import numpy as np
 from scipy import signal
 
-from ..character import Character
 from ..glyph import G
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
@@ -94,10 +93,6 @@ def ranged_priority(agent, dy, dx, monsters):
                 ret -= 5
             if dis == 1:
                 ret -= 6
-                # hypothesis: Rangers survive early adjacent fights more often by firing their trained
-                # starting ammunition instead of abandoning it for inferior melee attacks.
-                if agent.character.role == Character.RANGER:
-                    ret += 12
                 if mon.mname == 'gas spore':  # only gas spore ?
                     ret -= 100
             return ret, y, x, monster[0]
