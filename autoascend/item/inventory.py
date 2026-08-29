@@ -1014,12 +1014,6 @@ class Inventory:
     @utils.debug_log('inventory.wand_engrave_identify')
     @Strategy.wrap
     def wand_engrave_identify(self):
-        # hypothesis: deferring risky engrave-testing until XL8 prevents low-level
-        # heroes from being killed by an exploding unidentified wand while preserving
-        # wand identification after the fragile level-1 farming phase is complete.
-        if self.agent.blstats.experience_level < 8:
-            yield False
-            return
         if self.agent.character.prop.polymorph:
             yield False  # TODO: only for handless monsters (which cannot write)
 
