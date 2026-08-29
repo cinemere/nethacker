@@ -15,10 +15,6 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    # hypothesis: heroes gain more progression by choosing their existing escape/ranged actions instead
-    # of melee when a monster is at least four difficulty tiers above their current experience level.
-    if getattr(mon, 'difficulty', 0) >= agent.blstats.experience_level + 4:
-        ret -= 40
     if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
         ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
@@ -244,6 +240,24 @@ def wait_action(agent, monsters):
 
 def get_available_actions(agent, monsters):
     actions = []
+
+    # hypothesis: a hurt Tourist survives early adjacent threats more reliably by flashing the
+    # starting expensive camera to blind and scare them before resorting to melee or Elbereth.
+    if agent.character.role == agent.character.TOURIST and \
+            agent.blstats.hitpoints <= 6 and \
+            not agent.character.prop.blind:
+        camera = next((item for item in agent.inventory.items
+                       if item.is_unambiguous() and item.object.name == 'expensive camera' and
+                       item.uses != 'no charge' and
+                       (item.uses is None or int(item.uses.split(':')[1]) > 0)), None)
+        camera_targets = [monster for monster in monsters
+                          if adjacent((monster[1], monster[2]),
+                                      (agent.blstats.y, agent.blstats.x)) and
+                          monster[3].mname not in ONLY_RANGED_SLOW_MONSTERS]
+        if camera is not None and camera_targets:
+            target = max(camera_targets, key=lambda monster: is_dangerous_monster(agent, monster))
+            actions.append((40, ('camera', target[1] - agent.blstats.y,
+                                 target[2] - agent.blstats.x, camera)))
 
     # melee attack actions
     for monster in monsters:
