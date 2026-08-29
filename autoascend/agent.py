@@ -1302,9 +1302,8 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # hypothesis: limiting ordinary corpses to 30 turns avoids random early rot and food poisoning while
-        # preserving freshly killed nutrition for food-poor Tourists and Rangers.
-        if self.blstats.time - age_turn >= 30 and \
+        # corpse aging
+        if self.blstats.time - age_turn >= 50 and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 
