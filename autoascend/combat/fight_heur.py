@@ -4,7 +4,8 @@ from itertools import product
 import numpy as np
 from scipy import signal
 
-from ..glyph import G
+from ..character import Character
+from ..glyph import G, MON
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -93,6 +94,10 @@ def ranged_priority(agent, dy, dx, monsters):
                 ret -= 5
             if dis == 1:
                 ret -= 6
+                # hypothesis: Rangers survive early adjacent fights more often by firing their trained
+                # starting ammunition instead of abandoning it for inferior melee attacks.
+                if agent.character.role == Character.RANGER:
+                    ret += 12
                 if mon.mname == 'gas spore':  # only gas spore ?
                     ret -= 100
             return ret, y, x, monster[0]
@@ -329,10 +334,12 @@ def get_priorities(agent):
     # TODO: figure out how to use corridors priority so that it improves the score
     # if len([m for m in monsters if m[3].mname not in chain(ONLY_RANGED_SLOW_MONSTERS, WEAK_MONSTERS)]) >= 4:
     #     priority += get_corridors_priority_map(walkable)
-    # for _, _, _, mon, _ in monsters:
-    #     if ord(mon.mlet) == MON.S_ANT:
-    #         priority += get_corridors_priority_map(walkable)
-    #         break
+    # hypothesis: moving toward one-wide corridor geometry as soon as an ant is visible
+    # prevents fragile heroes from being surrounded by the rest of its fast-moving swarm.
+    for _, _, _, mon, _ in monsters:
+        if ord(mon.mlet) == MON.S_ANT:
+            priority += get_corridors_priority_map(walkable)
+            break
 
     # use relative priority to te current position
     priority -= priority[agent.blstats.y, agent.blstats.x]

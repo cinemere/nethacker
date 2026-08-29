@@ -1435,6 +1435,15 @@ class Agent:
                 (self.is_safe_to_pray(500) and
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
                   * self.blstats.max_hitpoints or self.blstats.hitpoints < 6))
+                # hypothesis: a foodless Ranger should pray at WEAK, before fainting can
+                # prevent the emergency strategy from interrupting the level-1 XP grind.
+                or (self.character.role == self.character.RANGER and
+                    not any(item.category == nh.FOOD_CLASS and
+                            item.objs[0].name != 'sprig of wolfsbane' and
+                            (not item.is_corpse() or item.monster_id in [
+                                MON.from_name(name) - nh.GLYPH_MON_OFF for name in ('lizard', 'lichen')])
+                            for item in flatten_items(self.inventory.items)) and
+                    self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.WEAK)
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True
