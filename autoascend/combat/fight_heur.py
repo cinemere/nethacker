@@ -4,8 +4,7 @@ from itertools import product
 import numpy as np
 from scipy import signal
 
-from ..character import Character
-from ..glyph import G, MON
+from ..glyph import G
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -16,8 +15,6 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
-        ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
@@ -94,10 +91,6 @@ def ranged_priority(agent, dy, dx, monsters):
                 ret -= 5
             if dis == 1:
                 ret -= 6
-                # hypothesis: Rangers survive early adjacent fights more often by firing their trained
-                # starting ammunition instead of abandoning it for inferior melee attacks.
-                if agent.character.role == Character.RANGER:
-                    ret += 12
                 if mon.mname == 'gas spore':  # only gas spore ?
                     ret -= 100
             return ret, y, x, monster[0]
@@ -191,10 +184,8 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(agent, monster):
-                    # hypothesis: an injured hero should spend an identified offensive wand charge against a
-                    # dangerous monster before ordinary melee, while healthy heroes should retain charges.
-                    priority += p * (25 + 20 * (1 - player_hp_ratio))
+                elif is_dangerous_monster(monster):
+                    priority += p * 25
                 else:
                     priority += min(p, 1) * 10
                 targeted_monsters.add((y, x, monster))
@@ -226,7 +217,7 @@ def elbereth_action(agent, monsters):
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(agent, monster):
+        if is_dangerous_monster(monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
@@ -333,15 +324,14 @@ def get_priorities(agent):
         draw_monster_priority_negative(agent, m, priority, walkable)
     priority[~walkable] = float('nan')
 
-    # TODO: figure out how to use corridors priority so that it improves the score
-    # if len([m for m in monsters if m[3].mname not in chain(ONLY_RANGED_SLOW_MONSTERS, WEAK_MONSTERS)]) >= 4:
-    #     priority += get_corridors_priority_map(walkable)
-    # hypothesis: moving toward one-wide corridor geometry as soon as an ant is visible
-    # prevents fragile heroes from being surrounded by the rest of its fast-moving swarm.
-    for _, _, _, mon, _ in monsters:
-        if ord(mon.mlet) == MON.S_ANT:
-            priority += get_corridors_priority_map(walkable)
-            break
+    # hypothesis: when a hostile pack is visible, favoring corridors prevents fragile
+    # heroes from being surrounded while leaving ordinary one-on-one fights unchanged.
+    if sum(m[3].mname not in ONLY_RANGED_SLOW_MONSTERS + WEAK_MONSTERS for m in monsters) >= 3:
+        priority += get_corridors_priority_map(walkable)
+    # for _, _, _, mon, _ in monsters:
+    #     if ord(mon.mlet) == MON.S_ANT:
+    #         priority += get_corridors_priority_map(walkable)
+    #         break
 
     # use relative priority to te current position
     priority -= priority[agent.blstats.y, agent.blstats.x]
