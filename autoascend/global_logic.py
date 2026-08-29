@@ -515,7 +515,10 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                condition = lambda: self.agent.blstats.experience_level >= 8
+                # hypothesis: Tourists that leave level 1 at XL7 convert their reliably reached XP milestone
+                # into descent progress before the prolonged XL8 grind kills them, while other roles keep the safer target.
+                condition = lambda: self.agent.blstats.experience_level >= (
+                    7 if self.agent.character.role == Character.TOURIST else 8)
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
                 #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
