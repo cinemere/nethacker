@@ -241,6 +241,18 @@ def wait_action(agent, monsters):
 def get_available_actions(agent, monsters):
     actions = []
 
+    # hypothesis: spending a Tourist's plentiful camera charges only in one-hit danger creates an escape
+    # gap for the weakest build without disrupting the routine fights it needs for progression.
+    if agent.blstats.hitpoints <= 4:
+        camera = next((item for item in agent.inventory.items
+                       if item.is_unambiguous() and item.object.name == 'expensive camera'
+                       and item.status != item.CURSED and item.uses != 'no charges'), None)
+        if camera is not None:
+            for _, y, x, mon, _ in monsters:
+                if adjacent((y, x), (agent.blstats.y, agent.blstats.x)) and \
+                        mon.mname not in WEAK_MONSTERS + ONLY_RANGED_SLOW_MONSTERS:
+                    actions.append((100, ('camera', y - agent.blstats.y, x - agent.blstats.x, camera)))
+
     # melee attack actions
     for monster in monsters:
         _, y, x, mon, _ = monster
