@@ -66,10 +66,10 @@ def draw_monster_priority_positive(agent, monster, priority, walkable):
         if len(agent.inventory.get_ranged_combinations()):
             _draw_ranged(priority, y, x, 1, walkable, radius=7, operation='max')
     elif 'unicorn' in mon.mname:
-        if agent.blstats.hitpoints >= 15 or agent.blstats.hitpoints == agent.blstats.max_hitpoints:
-            # freely engage in melee
-            _draw_around(priority, y, x, 2, radius=1, operation='max')
-            _draw_around(priority, y, x, 1, radius=2, operation='max')
+        # hypothesis: refusing to close with fast, hard-hitting unicorns while preserving a ranged firing line
+        # prevents repeated midgame deaths, especially for Rangers that already carry effective ammunition.
+        if len(agent.inventory.get_ranged_combinations()):
+            _draw_ranged(priority, y, x, 3, walkable, radius=7, operation='max')
     else:
         if not imminent_death_on_melee(agent, monster) and not utils.wielding_ranged_weapon(agent):
             # engage, but ensure striking first if possible
@@ -87,11 +87,6 @@ def draw_monster_priority_negative(agent, monster, priority, walkable):
     _, y, x, mon, _ = monster
     weak_monster = mon.mname in WEAK_MONSTERS and not \
         (mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4)
-
-    if agent.character.role == agent.character.MONK and \
-            mon.mname in ('cockatrice', 'chickatrice') and agent.inventory.items.gloves is None:
-        _draw_around(priority, y, x, -100, radius=1)
-        _draw_around(priority, y, x, -20, radius=2)
 
     if imminent_death_on_melee(agent, monster) and not weak_monster \
             and not mon.mname in ONLY_RANGED_SLOW_MONSTERS:
@@ -136,7 +131,8 @@ def draw_monster_priority_negative(agent, monster, priority, walkable):
         # ignore
         pass
     elif 'unicorn' in mon.mname:
-        pass
+        _draw_around(priority, y, x, -12, radius=1)
+        _draw_around(priority, y, x, -6, radius=2)
     else:
         if not weak_monster:
             # engage, but ensure striking first if possible
