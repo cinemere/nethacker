@@ -1216,17 +1216,6 @@ class Agent:
                 self.zap(wand, dir)
             return wait_counter
 
-        elif best_action[0] == 'camera':
-            _, dy, dx, camera = best_action
-            direction = self.calc_direction(self.blstats.y, self.blstats.x,
-                                            self.blstats.y + dy, self.blstats.x + dx,
-                                            allow_nonunit_distance=True)
-            with self.atom_operation():
-                self.step(A.Command.APPLY)
-                self.type_text(self.inventory.items.get_letter(camera))
-                self.direction(direction)
-            return wait_counter
-
         elif best_action[0] == 'pickup':
             if len(best_action) == 2:
                 _, items_to_pickup = best_action
@@ -1414,6 +1403,16 @@ class Agent:
     @utils.debug_log('emergency_strategy')
     @Strategy.wrap
     def emergency_strategy(self):
+
+        # hypothesis: immediately drinking a known non-cursed potion of gain level converts a rare
+        # inventory find into permanent XL progression instead of carrying it unused until death or timeout.
+        gain_level_items = [item for item in flatten_items(self.inventory.items)
+                            if item.is_unambiguous() and item.category == nh.POTION_CLASS
+                            and item.object.name == 'gain level' and item.status != Item.CURSED]
+        if gain_level_items:
+            yield True
+            self.inventory.quaff(gain_level_items[0])
+            return
 
         # if self.should_cast_extra_heal():
         #     yield True
