@@ -15,6 +15,10 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
+    # hypothesis: heroes gain more progression by choosing their existing escape/ranged actions instead
+    # of melee when a monster is at least four difficulty tiers above their current experience level.
+    if getattr(mon, 'difficulty', 0) >= agent.blstats.experience_level + 4:
+        ret -= 40
     if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
         ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):

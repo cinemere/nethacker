@@ -1458,31 +1458,14 @@ class Agent:
     def eat_from_inventory(self):
         if self.blstats.hunger_state < Hunger.HUNGRY:
             yield False
-        foods = [item for item in flatten_items(self.inventory.items)
-                 if item.category == nh.FOOD_CLASS and
-                 item.objs[0].name != 'sprig of wolfsbane' and
-                 (not item.is_corpse() or
-                  item.monster_id in [MON.from_name(n) - nh.GLYPH_MON_OFF for n in ['lizard', 'lichen']])]
-
-        # hypothesis: choosing safe ready food before slow tins and potentially unidentified eggs prevents
-        # hunger occupations and egg petrification from ending weak runs, without discarding emergency nutrition.
-        def food_priority(item):
-            name = item.objs[0].name
-            egg_risk = 0
-            if name == 'egg':
-                egg_risk = 1 if item.monster_id is None else \
-                    2 * (ord(MON.permonst(item.monster_id).mlet) == MON.S_COCKATRICE)
-            return egg_risk, name == 'tin', item.object.delay, -item.object.nutrition
-
-        if foods:
-            food = min(foods, key=food_priority)
-            # Unknown eggs are a last resort; identified cockatrice eggs are never food.
-            if food_priority(food)[0] == 2 or \
-                    (food_priority(food)[0] == 1 and self.blstats.hunger_state < Hunger.FAINTING):
-                yield False
-            yield True
-            self.inventory.eat(food)
-            return
+        for item in flatten_items(self.inventory.items):
+            if item.category == nh.FOOD_CLASS and \
+                    item.objs[0].name != 'sprig of wolfsbane' and \
+                    (not item.is_corpse() or
+                     item.monster_id in [MON.from_name(n) - nh.GLYPH_MON_OFF for n in ['lizard', 'lichen']]):
+                yield True
+                self.inventory.eat(item)
+                return
         yield False
 
     @utils.debug_log('cure_disease')
