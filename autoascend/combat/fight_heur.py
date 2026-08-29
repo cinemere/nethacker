@@ -4,7 +4,7 @@ from itertools import product
 import numpy as np
 from scipy import signal
 
-from ..glyph import G, MON
+from ..glyph import G
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -251,22 +251,6 @@ def get_available_actions(agent, monsters):
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
             actions.append((priority, ('melee', dy, dx)))
-
-    cameras = [item for item in agent.inventory.items
-               if item.is_unambiguous() and item.object.name == 'expensive camera'
-               and item.status != item.CURSED and item.uses != 'no charges']
-    adjacent_camera_targets = [monster for monster in monsters
-                               if adjacent((monster[1], monster[2]),
-                                           (agent.blstats.y, agent.blstats.x))
-                               and not monster[3].mflags1 & MON.M1_NOEYES
-                               and is_dangerous_monster(agent, monster)]
-    # hypothesis: a wounded Tourist survives outmatched adjacent fights more often by flashing its
-    # reusable starting camera once than by immediately trading low-damage melee attacks.
-    if agent.character.role == agent.character.TOURIST and cameras and adjacent_camera_targets and \
-            agent.blstats.hitpoints <= 1 / 2 * agent.blstats.max_hitpoints and \
-            agent.blstats.time - agent.last_camera_turn >= 20:
-        _, y, x, _, _ = max(adjacent_camera_targets, key=lambda monster: monster[3].difficulty)
-        actions.append((35, ('camera', y - agent.blstats.y, x - agent.blstats.x, cameras[0])))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):
