@@ -1417,10 +1417,8 @@ class Agent:
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
         if (
-                # hypothesis: using known healing before one-hit range lets potion-equipped fragile builds survive early monsters long enough to reach the next progression milestone.
-                (self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints
-                 or (self.blstats.hitpoints < 12 and
-                     self.blstats.hitpoints < self.blstats.max_hitpoints)) and items
+                (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
+                 or self.blstats.hitpoints < 8) and items
         ):
             yield True
             self.inventory.quaff(items[0])
