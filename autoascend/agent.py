@@ -75,7 +75,6 @@ class Agent:
         # when (number of turn) there was last decision about allowing these actions (e.g. agent is somewhat stuck)
         self._allow_walking_through_traps_turn = -float('inf')
         self._allow_attack_all_turn = -float('inf')
-        self._last_camera_turn = -float('inf')
 
         self.last_cast_fail_turn = defaultdict(lambda: -float('inf'))
 
@@ -776,13 +775,6 @@ class Agent:
             self.direction(direction)
         return True
 
-    def apply_directional_tool(self, item, direction):
-        with self.atom_operation():
-            self.step(A.Command.APPLY)
-            self.type_text(self.inventory.items.get_letter(item))
-            self.direction(direction)
-        return True
-
     def cast(self, spell_name, direction):
         with self.atom_operation():
             dy, dx = direction
@@ -1195,13 +1187,6 @@ class Agent:
                 assert fired, (ammo, dir)
                 return wait_counter
 
-        elif best_action[0] == 'camera':
-            _, dy, dx, camera = best_action
-            self.apply_directional_tool(camera, self.calc_direction(
-                self.blstats.y, self.blstats.x, self.blstats.y + dy, self.blstats.x + dx))
-            self._last_camera_turn = self.blstats.time
-            return wait_counter
-
         elif best_action[0] == 'elbereth':
             assert self.inventory.engraving_below_me.lower() != 'elbereth'
             self.engrave("Elbereth")
@@ -1317,8 +1302,10 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # corpse aging
-        if self.blstats.time - age_turn >= 50 and \
+        # hypothesis: Tourists should stop eating ordinary corpses before the randomized spoilage window,
+        # avoiding lethal food poisoning without denying sturdier, food-hungry builds the same nutrition.
+        corpse_age_limit = 30 if self.character.role == Character.TOURIST else 50
+        if self.blstats.time - age_turn >= corpse_age_limit and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 

@@ -7,7 +7,8 @@ from scipy import signal
 from ..glyph import G
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
-    ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
+    ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, INSECTS, WEAK_MONSTERS, \
+    consider_melee_only_ranged_if_hp_full
 from .movement_priority import draw_monster_priority_positive, draw_monster_priority_negative
 from .utils import wielding_ranged_weapon, line_dis_from, inside
 
@@ -241,19 +242,6 @@ def wait_action(agent, monsters):
 def get_available_actions(agent, monsters):
     actions = []
 
-    # hypothesis: a fragile Tourist survives serious adjacent fights more often by flashing its renewable
-    # starting camera to blind or scare the attacker before committing scarce HP to melee.
-    if agent.character.role == agent.character.TOURIST and agent.blstats.time - agent._last_camera_turn >= 10:
-        camera = next((item for item in agent.inventory.items if item.is_unambiguous() and
-                       item.object.name == 'expensive camera' and item.uses != 0), None)
-        if camera is not None:
-            for monster in monsters:
-                _, y, x, _, _ = monster
-                if adjacent((y, x), (agent.blstats.y, agent.blstats.x)) and \
-                        is_dangerous_monster(agent, monster):
-                    actions.append((35, ('camera', y - agent.blstats.y, x - agent.blstats.x, camera)))
-                    break
-
     # melee attack actions
     for monster in monsters:
         _, y, x, mon, _ = monster
@@ -340,6 +328,11 @@ def get_priorities(agent):
     for m in monsters:
         draw_monster_priority_negative(agent, m, priority, walkable)
     priority[~walkable] = float('nan')
+
+    # hypothesis: preferring nearby corridor mouths while fighting fast insects prevents ants and bees
+    # from surrounding fragile heroes, without changing positioning in ordinary one-on-one fights.
+    if any(mon.mname in INSECTS for _, _, _, mon, _ in monsters):
+        priority += get_corridors_priority_map(walkable)
 
     # TODO: figure out how to use corridors priority so that it improves the score
     # if len([m for m in monsters if m[3].mname not in chain(ONLY_RANGED_SLOW_MONSTERS, WEAK_MONSTERS)]) >= 4:
