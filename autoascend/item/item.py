@@ -215,10 +215,8 @@ class Item:
             return False
         if not self.is_ray_wand():
             return False
-        # hypothesis: refusing depleted ray wands prevents the combat loop from repeatedly spending turns on
-        # an impossible zap while an adjacent monster attacks, preserving otherwise viable progression runs.
-        if self.uses in ('no charge', 'no charges') or \
-                (self.uses is not None and self.uses.endswith(':0')):
+        if self.uses == 'no charges':
+            # TODO: is it right ?
             return False
         if self.objs[0] == O.from_name('sleep', nh.WAND_CLASS):
             return False
