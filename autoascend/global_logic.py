@@ -635,6 +635,12 @@ class GlobalLogic:
             .preempt(self.agent, [
                 self.agent.fight2(),
             ])
+            # hypothesis: letting hallucination recovery preempt ordinary combat prevents randomized monster
+            # identities from causing attacks on peaceful NPCs, without suppressing defense during other ailments.
+            .preempt(self.agent, [
+                self.wait_out_unexpected_state_strategy().condition(
+                    lambda: self.agent.character.prop.hallu),
+            ])
             .preempt(self.agent, [
                 self.agent.engulfed_fight(),
             ])

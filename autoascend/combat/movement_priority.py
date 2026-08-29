@@ -66,10 +66,10 @@ def draw_monster_priority_positive(agent, monster, priority, walkable):
         if len(agent.inventory.get_ranged_combinations()):
             _draw_ranged(priority, y, x, 1, walkable, radius=7, operation='max')
     elif 'unicorn' in mon.mname:
-        # hypothesis: refusing to close with fast, hard-hitting unicorns while preserving a ranged firing line
-        # prevents repeated midgame deaths, especially for Rangers that already carry effective ammunition.
-        if len(agent.inventory.get_ranged_combinations()):
-            _draw_ranged(priority, y, x, 3, walkable, radius=7, operation='max')
+        if agent.blstats.hitpoints >= 15 or agent.blstats.hitpoints == agent.blstats.max_hitpoints:
+            # freely engage in melee
+            _draw_around(priority, y, x, 2, radius=1, operation='max')
+            _draw_around(priority, y, x, 1, radius=2, operation='max')
     else:
         if not imminent_death_on_melee(agent, monster) and not utils.wielding_ranged_weapon(agent):
             # engage, but ensure striking first if possible
@@ -131,8 +131,7 @@ def draw_monster_priority_negative(agent, monster, priority, walkable):
         # ignore
         pass
     elif 'unicorn' in mon.mname:
-        _draw_around(priority, y, x, -12, radius=1)
-        _draw_around(priority, y, x, -6, radius=2)
+        pass
     else:
         if not weak_monster:
             # engage, but ensure striking first if possible
