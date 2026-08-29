@@ -188,10 +188,6 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                     priority += min(p, 1) * 1
                 elif is_dangerous_monster(agent, monster):
                     priority += p * 25
-                    # hypothesis: below half health, spending a known offensive wand charge on an
-                    # adjacent dangerous monster is safer than the currently higher-scored melee attack.
-                    if adjacent((y, x), (agent.blstats.y, agent.blstats.x)) and player_hp_ratio < 0.5:
-                        priority += min(p, 1) * 10
                 else:
                     priority += min(p, 1) * 10
                 targeted_monsters.add((y, x, monster))
@@ -228,7 +224,9 @@ def elbereth_action(agent, monsters):
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
+        # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
+        # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
+        return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
 
