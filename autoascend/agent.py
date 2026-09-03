@@ -1242,38 +1242,48 @@ class Agent:
                 break
             assert self.melee_attack(*list(zip(*mask.nonzero()))[0])
 
+    # hypothesis: the parent starves to death whenever it hits FAINTING while its prayer is on
+    # cooldown — it refuses mildly-unsafe corpses (poisonous, stunning, aggravating, etc.) and
+    # just dies. When starvation death is otherwise imminent, eating such corpses (still
+    # refusing petrifying, acidic/green-slime and old/tainted ones) is strictly better than
+    # dying. This state is only reached in runs the parent already loses to starvation, so all
+    # other trajectories stay identical.
+    def _is_starvation_desperate(self):
+        return self.blstats.hunger_state >= Hunger.FAINTING and not self.is_safe_to_pray(400)
+
     def _is_corpse_editable(self, monster_id, age_turn):
         permonst = MON.permonst(monster_id)
+        desperate = self._is_starvation_desperate()
 
         # TODO: read intrinsics
-        if self.character.race != Character.ORC and permonst.mflags1 & MON.M1_POIS != 0:
+        if not desperate and self.character.race != Character.ORC and permonst.mflags1 & MON.M1_POIS != 0:
             return False
 
         # TODO: read intrinsics
         if permonst.mflags1 & MON.M1_ACID != 0:
             return False
 
-        if permonst.mflags2 & MON.M2_WERE != 0:
+        if not desperate and permonst.mflags2 & MON.M2_WERE != 0:
             return False
 
         # polymorph
-        if monster_id in [MON.id_from_name(name) for name in ['chameleon', 'doppelganger', 'sandestin']]:
+        if not desperate and monster_id in [MON.id_from_name(name) for name in ['chameleon', 'doppelganger', 'sandestin']]:
             return False
 
         # remove random intrinsic
-        if monster_id in [MON.id_from_name(name) for name in ['disenchanter']]:
+        if not desperate and monster_id in [MON.id_from_name(name) for name in ['disenchanter']]:
             return False
 
         # hallucination
-        if monster_id in [MON.id_from_name(name) for name in ['abbot', 'violet fungus', 'yellow mold']]:
+        if not desperate and monster_id in [MON.id_from_name(name) for name in ['abbot', 'violet fungus', 'yellow mold']]:
             return False
 
         # stun
-        if monster_id in [MON.id_from_name(name) for name in ['bat', 'giant bat']]:
+        if not desperate and monster_id in [MON.id_from_name(name) for name in ['bat', 'giant bat']]:
             return False
 
         # aggravate monster
-        if monster_id in [MON.id_from_name(name) for name in ['dog', 'little dog', 'large dog',
+        if not desperate and monster_id in [MON.id_from_name(name) for name in ['dog', 'little dog', 'large dog',
                                                               'kitten', 'housecat', 'large cat']]:
             return False
 
@@ -1459,13 +1469,8 @@ class Agent:
         if self.blstats.hunger_state < Hunger.HUNGRY:
             yield False
         for item in flatten_items(self.inventory.items):
-            # See ONLY_RANGED_SLOW_MONSTERS: consuming a known cockatrice tin is
-            # another avoidable instant-petrification route.
-            petrifying_tin = item.is_unambiguous() and item.object.name == 'tin' and \
-                item.monster_id is not None and ord(MON.permonst(item.monster_id).mlet) == MON.S_COCKATRICE
             if item.category == nh.FOOD_CLASS and \
                     item.objs[0].name != 'sprig of wolfsbane' and \
-                    not petrifying_tin and \
                     (not item.is_corpse() or
                      item.monster_id in [MON.from_name(n) - nh.GLYPH_MON_OFF for n in ['lizard', 'lichen']]):
                 yield True

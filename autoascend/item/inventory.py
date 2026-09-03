@@ -630,7 +630,12 @@ class Inventory:
                             moved_items = moved_items.union(its)
                             self.use_container(container, items_to_take=its, items_to_put=[])
 
-                assert moved_items == set(items), ('TODO: nested containers', moved_items, items)
+                # part of the starvation-avoidance change: corpses fetched for eating or
+                # sacrifice often rot or vanish from tracking before the move; crashing the
+                # whole agent here (old assert) forfeited the rest of the game — panic and
+                # recover instead, like eat() does for the same situation
+                if moved_items != set(items):
+                    raise AgentPanic('items to move to inventory disappeared')
 
             # TODO: HACK
             self.agent.last_observation = self.agent.last_observation.copy()
