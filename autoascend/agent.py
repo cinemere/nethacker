@@ -1416,16 +1416,9 @@ class Agent:
 
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
-        nearby_threat = any(
-            distance <= 2 for distance, *_ in self.get_visible_monsters()
-        )
-        # hypothesis: drinking an identified healing potion before a nearby monster gets a
-        # second low-HP attack prevents common combat deaths across fragile roles, while
-        # retaining the old threshold for damage taken safely during exploration.
         if (
                 (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
-                 or self.blstats.hitpoints < 8
-                 or (nearby_threat and self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints)) and items
+                 or self.blstats.hitpoints < 8) and items
         ):
             yield True
             self.inventory.quaff(items[0])
@@ -1465,19 +1458,9 @@ class Agent:
     def eat_from_inventory(self):
         if self.blstats.hunger_state < Hunger.HUNGRY:
             yield False
-        foods = list(flatten_items(self.inventory.items))
-        # hypothesis: deferring slow-to-open tins while ready-to-eat food is available prevents weak heroes,
-        # especially Tourists, from giving nearby monsters many free attacks without sacrificing emergency food.
-        foods.sort(key=lambda item: item.is_unambiguous() and item.object.name == 'tin')
-        for item in foods:
-            # hypothesis: refusing nutritionally tiny eggs (whose species is often hidden) and identified
-            # cockatrice tins as hunger food prevents deterministic petrification without sacrificing useful food.
-            petrifying_food = item.is_unambiguous() and (item.object.name == 'egg' or (
-                item.object.name == 'tin' and item.monster_id is not None and
-                ord(MON.permonst(item.monster_id).mlet) == MON.S_COCKATRICE))
+        for item in flatten_items(self.inventory.items):
             if item.category == nh.FOOD_CLASS and \
                     item.objs[0].name != 'sprig of wolfsbane' and \
-                    not petrifying_food and \
                     (not item.is_corpse() or
                      item.monster_id in [MON.from_name(n) - nh.GLYPH_MON_OFF for n in ['lizard', 'lichen']]):
                 yield True
