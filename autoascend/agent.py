@@ -1191,6 +1191,10 @@ class Agent:
             assert self.inventory.engraving_below_me.lower() != 'elbereth'
             self.engrave("Elbereth")
             return wait_counter
+        elif best_action[0] == 'quaff_healing':
+            _, potion = best_action
+            self.inventory.quaff(potion)
+            return wait_counter
         elif best_action[0] == 'wait':
             assert self.inventory.engraving_below_me.lower() == 'elbereth'
             self.stats_logger.log_event('wait_in_fight')

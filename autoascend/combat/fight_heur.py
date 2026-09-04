@@ -3,8 +3,10 @@ from itertools import product
 
 import numpy as np
 from scipy import signal
+import nle.nethack as nh
 
 from ..glyph import G
+from ..item import flatten_items
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -15,10 +17,6 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    if mon.mname == 'cockatrice':
-        # Its passive attack is fatal without gloves; retreating is preferable whenever a
-        # movement action exists, while the fallback still handles a truly trapped hero.
-        ret -= 20
     if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
         ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
@@ -244,6 +242,15 @@ def wait_action(agent, monsters):
 
 def get_available_actions(agent, monsters):
     actions = []
+
+    healing_potions = [item for item in flatten_items(agent.inventory.items)
+                       if item.is_unambiguous() and item.category == nh.POTION_CLASS and
+                       item.object.name in ('healing', 'extra healing', 'full healing')]
+    # hypothesis: an identified healing potion must be usable from the combat action set, because the
+    # normal emergency strategy runs only after combat has ended and otherwise cannot prevent the next hit.
+    if healing_potions and (agent.blstats.hitpoints < agent.blstats.max_hitpoints / 3 or
+                            agent.blstats.hitpoints < 8):
+        actions.append((100, ('quaff_healing', healing_potions[0])))
 
     # melee attack actions
     for monster in monsters:
