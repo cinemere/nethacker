@@ -1,7 +1,11 @@
 # heuristic monster types lists
 # hypothesis: treating red molds like the existing cold-passive molds prevents fragile heroes from
 # spending scarce early HP on avoidable melee retaliation while preserving ordinary combat behavior.
-ONLY_RANGED_SLOW_MONSTERS = ['floating eye', 'blue jelly', 'brown mold', 'red mold', 'gas spore', 'acid blob']
+# hypothesis: cockatrices and chickatrices can petrify a hero on contact, so routing
+# them through the existing ranged-only handling prevents otherwise terminal melee
+# decisions for every role.
+ONLY_RANGED_SLOW_MONSTERS = ['floating eye', 'blue jelly', 'brown mold', 'red mold', 'gas spore', 'acid blob',
+                             'cockatrice', 'chickatrice']
 EXPLODING_MONSTERS = ['yellow light', 'gas spore', 'flaming sphere', 'freezing sphere', 'shocking sphere']
 INSECTS = ['giant ant', 'killer bee', 'soldier ant', 'fire ant', 'giant beetle', 'queen bee']
 WEAK_MONSTERS = ['lichen', 'newt', 'shrieker', 'grid bug']

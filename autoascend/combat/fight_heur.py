@@ -3,10 +3,8 @@ from itertools import product
 
 import numpy as np
 from scipy import signal
-import nle.nethack as nh
 
 from ..glyph import G
-from ..item import flatten_items
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -242,14 +240,6 @@ def wait_action(agent, monsters):
 
 def get_available_actions(agent, monsters):
     actions = []
-
-    healing_potions = [item for item in flatten_items(agent.inventory.items)
-                       if item.is_unambiguous() and item.category == nh.POTION_CLASS and
-                       item.object.name in ('healing', 'extra healing', 'full healing')]
-    # hypothesis: making identified healing potions a high-priority combat action prevents
-    # low-HP heroes of every role from taking an otherwise unavoidable next melee hit.
-    if healing_potions and agent.blstats.hitpoints < 8:
-        actions.append((100, ('quaff_healing', healing_potions[0])))
 
     # melee attack actions
     for monster in monsters:
