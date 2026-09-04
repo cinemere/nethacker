@@ -627,7 +627,10 @@ class GlobalLogic:
             .preempt(self.agent, [
                 self.agent.eat_corpses_from_ground(only_below_me=True).condition(lambda: self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY),
                 self.agent.eat_corpses_from_ground().every(5).condition(lambda: self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY),
-                self.agent.eat_from_inventory().every(5),
+                # hypothesis: checking carried food twice as often once hungry prevents
+                # starvation across roles whose exploration/combat loops can otherwise
+                # skip the five-update polling window for many game turns.
+                self.agent.eat_from_inventory().every(2),
             ])
             .preempt(self.agent, [
                 self.follow_guard(),
