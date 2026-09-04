@@ -208,14 +208,16 @@ def elbereth_action(agent, monsters):
     adj_monsters_count = 0
     for monster in monsters:
         _, my, mx, mon, _ = monster
-        if mon.mname in ONLY_RANGED_SLOW_MONSTERS and mon.mname not in ('cockatrice', 'chickatrice'):
+        if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
             continue
         if not adjacent((my, mx), (agent.blstats.y, agent.blstats.x)):
             continue
         multiplier = np.clip(20 / agent.blstats.hitpoints, 1.0, 1.5)
         if is_monster_faster(agent, monster):
             multiplier *= 2
-        if mon in WEAK_MONSTERS:
+        # hypothesis: recognizing weak adjacent monsters by name avoids wasting Elbereth escapes on
+        # harmless fodder, preserving turns and food for dangerous encounters across all roles.
+        if mon.mname in WEAK_MONSTERS:
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
@@ -224,8 +226,6 @@ def elbereth_action(agent, monsters):
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
-        # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
         return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 

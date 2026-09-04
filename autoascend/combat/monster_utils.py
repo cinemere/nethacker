@@ -1,8 +1,7 @@
 # heuristic monster types lists
-# hypothesis: treating petrifying birds like other no-melee hazards prevents instant deaths across
-# ungloved roles, letting the bot's existing ranged and retreat behavior handle those encounters.
-ONLY_RANGED_SLOW_MONSTERS = ['floating eye', 'blue jelly', 'brown mold', 'red mold', 'gas spore', 'acid blob',
-                             'cockatrice', 'chickatrice']
+# hypothesis: treating red molds like the existing cold-passive molds prevents fragile heroes from
+# spending scarce early HP on avoidable melee retaliation while preserving ordinary combat behavior.
+ONLY_RANGED_SLOW_MONSTERS = ['floating eye', 'blue jelly', 'brown mold', 'red mold', 'gas spore', 'acid blob']
 EXPLODING_MONSTERS = ['yellow light', 'gas spore', 'flaming sphere', 'freezing sphere', 'shocking sphere']
 INSECTS = ['giant ant', 'killer bee', 'soldier ant', 'fire ant', 'giant beetle', 'queen bee']
 WEAK_MONSTERS = ['lichen', 'newt', 'shrieker', 'grid bug']
@@ -33,7 +32,7 @@ def is_dangerous_monster(agent, monster):
     # 'mumak' in mon.mname or 'orc' in mon.mname or 'rothe' in mon.mname \
     # or 'were' in mon.mname or 'unicorn' in mon.mname or 'elf' in mon.mname or 'leocrotta' in mon.mname \
     # or 'mimic' in mon.mname
-    return outmatched or is_pet or mon.mname in INSECTS or mon.mname in ('cockatrice', 'chickatrice')
+    return outmatched or is_pet or mon.mname in INSECTS
 
 
 def consider_melee_only_ranged_if_hp_full(agent, monster):
