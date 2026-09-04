@@ -15,6 +15,10 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
+    if mon.mname == 'cockatrice':
+        # Its passive attack is fatal without gloves; retreating is preferable whenever a
+        # movement action exists, while the fallback still handles a truly trapped hero.
+        ret -= 20
     if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
         ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):

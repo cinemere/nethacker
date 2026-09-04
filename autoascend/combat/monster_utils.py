@@ -17,6 +17,10 @@ def is_monster_faster(agent, monster):
 
 
 def imminent_death_on_melee(agent, monster):
+    # hypothesis: cockatrices can petrify an unprotected hero through ordinary melee, so
+    # treating contact as immediately lethal makes the existing retreat map protect every role.
+    if monster[3].mname == 'cockatrice':
+        return True
     if is_dangerous_monster(agent, monster):
         return agent.blstats.hitpoints <= 16
     return agent.blstats.hitpoints <= 8
