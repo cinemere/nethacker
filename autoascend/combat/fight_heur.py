@@ -208,7 +208,7 @@ def elbereth_action(agent, monsters):
     adj_monsters_count = 0
     for monster in monsters:
         _, my, mx, mon, _ = monster
-        if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
+        if mon.mname in ONLY_RANGED_SLOW_MONSTERS and mon.mname not in ('cockatrice', 'chickatrice'):
             continue
         if not adjacent((my, mx), (agent.blstats.y, agent.blstats.x)):
             continue
