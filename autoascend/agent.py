@@ -1420,9 +1420,16 @@ class Agent:
 
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
+        nearby_threat = any(
+            distance <= 2 for distance, *_ in self.get_visible_monsters()
+        )
+        # hypothesis: drinking an identified healing potion before a nearby monster gets a
+        # second low-HP attack prevents common combat deaths across fragile roles, while
+        # retaining the old threshold for damage taken safely during exploration.
         if (
                 (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
-                 or self.blstats.hitpoints < 8) and items
+                 or self.blstats.hitpoints < 8
+                 or (nearby_threat and self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints)) and items
         ):
             yield True
             self.inventory.quaff(items[0])

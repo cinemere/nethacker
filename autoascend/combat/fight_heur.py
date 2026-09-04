@@ -246,10 +246,9 @@ def get_available_actions(agent, monsters):
     healing_potions = [item for item in flatten_items(agent.inventory.items)
                        if item.is_unambiguous() and item.category == nh.POTION_CLASS and
                        item.object.name in ('healing', 'extra healing', 'full healing')]
-    # hypothesis: an identified healing potion must be usable from the combat action set, because the
-    # normal emergency strategy runs only after combat has ended and otherwise cannot prevent the next hit.
-    if healing_potions and (agent.blstats.hitpoints < agent.blstats.max_hitpoints / 3 or
-                            agent.blstats.hitpoints < 8):
+    # hypothesis: making the existing emergency healing rule available inside combat prevents
+    # an adjacent monster from getting the otherwise unavoidable next attack below 8 HP.
+    if healing_potions and agent.blstats.hitpoints < 8:
         actions.append((100, ('quaff_healing', healing_potions[0])))
 
     # melee attack actions
