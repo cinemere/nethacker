@@ -3,11 +3,8 @@ from itertools import product
 
 import numpy as np
 from scipy import signal
-from nle import nethack as nh
 
 from ..glyph import G
-from ..item import flatten_items
-from .. import objects as O
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -20,12 +17,6 @@ def melee_monster_priority(agent, monsters, monster):
     ret = 1
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
-    # hypothesis: fast monsters get another attack whenever a retreat loses the
-    # initiative, so favoring melee at every HP total below 16 turns bats, dogs,
-    # and bees into avoidable deaths; let the existing escape map choose space
-    # or Elbereth while there is still a survivable margin.
-    if is_monster_faster(agent, monster) and agent.blstats.hitpoints <= 16:
-        ret -= 20
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
         ret -= 6
     if mon.mname in EXPLODING_MONSTERS:
@@ -245,21 +236,6 @@ def wait_action(agent, monsters):
 
 def get_available_actions(agent, monsters):
     actions = []
-
-    # hypothesis: fight2 keeps control for a whole encounter, so the normal emergency
-    # strategy cannot drink a healing potion until combat has already ended.  Offering
-    # a *known* healing potion at the same one-hit-range threshold lets every role
-    # recover before one more melee exchange kills it, without spending unidentified
-    # consumables or changing healthy encounters.
-    if any(dis <= 2 for dis, *_ in monsters) and \
-            (agent.blstats.hitpoints < agent.blstats.max_hitpoints / 3 or agent.blstats.hitpoints < 8):
-        healing = [item for item in flatten_items(agent.inventory.items)
-                   if item.is_unambiguous() and item.category == nh.POTION_CLASS and
-                   item.object in [O.from_name('healing', nh.POTION_CLASS),
-                                   O.from_name('extra healing', nh.POTION_CLASS),
-                                   O.from_name('full healing', nh.POTION_CLASS)]]
-        if healing:
-            actions.append((30, ('quaff', healing[0])))
 
     # melee attack actions
     for monster in monsters:
