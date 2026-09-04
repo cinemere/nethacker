@@ -1223,6 +1223,10 @@ class Agent:
                 items_to_pickup = combat.fight_heur.decide_what_to_pickup(self)
             self.inventory.pickup(items_to_pickup)
             return wait_counter
+        elif best_action[0] == 'quaff':
+            _, potion = best_action
+            self.inventory.quaff(potion)
+            return wait_counter
         elif best_action[0] == 'go_to':
             _, target_y, target_x = best_action
             self.go_to(target_y, target_x, stop_one_before=True, max_steps=1,
