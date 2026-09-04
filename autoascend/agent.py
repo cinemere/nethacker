@@ -1439,8 +1439,10 @@ class Agent:
             return
 
         if (
+                # hypothesis: using a safe prayer at one-third HP on low-level heroes gives
+                # fragile roles a recovery turn before common early monsters can finish them.
                 (self.is_safe_to_pray(500) and
-                 (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
+                 (self.blstats.hitpoints < 1 / (3 if self.blstats.experience_level < 6 else 6)
                   * self.blstats.max_hitpoints or self.blstats.hitpoints < 6))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
