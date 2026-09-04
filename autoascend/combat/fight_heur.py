@@ -224,6 +224,12 @@ def elbereth_action(agent, monsters):
         if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
 
+    # hypothesis: at critical HP, a guaranteed Elbereth escape is worth more than
+    # one more melee exchange even with a nominally weak adjacent monster, giving
+    # every fragile role time to recover instead of dying to low-damage foes.
+    if agent.blstats.hitpoints <= 8 and adj_monsters_count > 0:
+        return [(50, ('elbereth',))]
+
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
         return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
