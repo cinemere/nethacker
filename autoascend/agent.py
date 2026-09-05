@@ -951,7 +951,7 @@ class Agent:
 
         for my, mx in list(zip(*np.nonzero(utils.isin(self.glyphs, G.MONS)))):
             mon = MON.permonst(self.glyphs[my][mx])
-            if mon.mname in combat.monster_utils.ONLY_RANGED_SLOW_MONSTERS:
+            if combat.monster_utils.should_avoid_melee(self, mon):
                 walkable[my, mx] = False
 
         dis = utils.bfs(y, x,
@@ -1105,7 +1105,7 @@ class Agent:
         while 1:
             monsters = self.get_visible_monsters()
             allow_attack_all = self._last_turn - self._allow_attack_all_turn < 3
-            only_ranged_slow_monsters = all([monster[3].mname in combat.monster_utils.ONLY_RANGED_SLOW_MONSTERS
+            only_ranged_slow_monsters = all([combat.monster_utils.should_avoid_melee(self, monster)
                                              and not combat.monster_utils.consider_melee_only_ranged_if_hp_full(self,
                                                                                                                 monster)
                                              for monster in monsters])
@@ -1136,7 +1136,7 @@ class Agent:
                 actions = list(filter(lambda x: x[1][0] != 'ranged', actions))
 
             if allow_attack_all:
-                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'zap')]
+                attack_actions = [a for a in actions if a[1][0] in ('melee', 'kick', 'ranged', 'zap')]
                 if attack_actions:
                     actions = attack_actions
 
@@ -1186,6 +1186,11 @@ class Agent:
                 fired = self.fire(ammo, dir)
                 assert fired, (ammo, dir)
                 return wait_counter
+
+        elif best_action[0] == 'kick':
+            _, dy, dx = best_action
+            self.kick(self.blstats.y + dy, self.blstats.x + dx)
+            return 0
 
         elif best_action[0] == 'elbereth':
             assert self.inventory.engraving_below_me.lower() != 'elbereth'
@@ -1438,10 +1443,7 @@ class Agent:
         if (
                 (self.is_safe_to_pray(500) and
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
-                  * self.blstats.max_hitpoints or
-                  # hypothesis: praying at twelve HP instead of waiting below six spends the
-                  # cooled-down emergency resource before ordinary foes can land a lethal round.
-                  self.blstats.hitpoints <= 12))
+                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 6))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True

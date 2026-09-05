@@ -1,7 +1,7 @@
 from ..utils import adjacent
 from . import utils
 from .monster_utils import WEAK_MONSTERS, ONLY_RANGED_SLOW_MONSTERS, consider_melee_only_ranged_if_hp_full, \
-    imminent_death_on_melee, EXPLODING_MONSTERS, WEIRD_MONSTERS
+    imminent_death_on_melee, EXPLODING_MONSTERS, WEIRD_MONSTERS, should_avoid_melee
 
 
 def _draw_around(priority, y, x, value, radius=1, operation='add'):
@@ -59,7 +59,7 @@ def draw_monster_priority_positive(agent, monster, priority, walkable):
             _draw_around(priority, y, x, 1, radius=2, operation='max')
         if len(agent.inventory.get_ranged_combinations()):
             _draw_ranged(priority, y, x, 1, walkable, radius=7, operation='max')
-    elif mon.mname in ONLY_RANGED_SLOW_MONSTERS:  # and agent.inventory.get_ranged_combinations():
+    elif should_avoid_melee(agent, monster):  # and agent.inventory.get_ranged_combinations():
         if consider_melee_only_ranged_if_hp_full(agent, monster):
             _draw_around(priority, y, x, 2, radius=1, operation='max')
             _draw_around(priority, y, x, 1, radius=2, operation='max')
@@ -89,7 +89,7 @@ def draw_monster_priority_negative(agent, monster, priority, walkable):
         (mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4)
 
     if imminent_death_on_melee(agent, monster) and not weak_monster \
-            and not mon.mname in ONLY_RANGED_SLOW_MONSTERS:
+            and not should_avoid_melee(agent, monster):
         if mon.mmove <= 12:
             _draw_around(priority, y, x, -10, radius=1)
         else:
@@ -127,7 +127,7 @@ def draw_monster_priority_negative(agent, monster, priority, walkable):
         # prioritize staying in ranged weapons line of fire
         if len(agent.inventory.get_ranged_combinations()):
             _draw_ranged(priority, y, x, 6, walkable, radius=7)
-    elif mon.mname in ONLY_RANGED_SLOW_MONSTERS:  # and agent.inventory.get_ranged_combinations():
+    elif should_avoid_melee(agent, monster):  # and agent.inventory.get_ranged_combinations():
         # ignore
         pass
     elif 'unicorn' in mon.mname:
