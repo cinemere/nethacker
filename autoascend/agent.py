@@ -1417,7 +1417,10 @@ class Agent:
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
         if (
-                (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
+                # hypothesis: identified healing potions are currently held until a hero is
+                # already in one-round kill range.  Spending one below half HP prevents
+                # early multi-attack deaths for every role without risking unidentified items.
+                (self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints
                  or self.blstats.hitpoints < 8) and items
         ):
             yield True
