@@ -951,7 +951,7 @@ class Agent:
 
         for my, mx in list(zip(*np.nonzero(utils.isin(self.glyphs, G.MONS)))):
             mon = MON.permonst(self.glyphs[my][mx])
-            if combat.monster_utils.should_avoid_melee(self, mon):
+            if mon.mname in combat.monster_utils.ONLY_RANGED_SLOW_MONSTERS:
                 walkable[my, mx] = False
 
         dis = utils.bfs(y, x,
@@ -1105,7 +1105,7 @@ class Agent:
         while 1:
             monsters = self.get_visible_monsters()
             allow_attack_all = self._last_turn - self._allow_attack_all_turn < 3
-            only_ranged_slow_monsters = all([combat.monster_utils.should_avoid_melee(self, monster)
+            only_ranged_slow_monsters = all([monster[3].mname in combat.monster_utils.ONLY_RANGED_SLOW_MONSTERS
                                              and not combat.monster_utils.consider_melee_only_ranged_if_hp_full(self,
                                                                                                                 monster)
                                              for monster in monsters])
@@ -1136,7 +1136,7 @@ class Agent:
                 actions = list(filter(lambda x: x[1][0] != 'ranged', actions))
 
             if allow_attack_all:
-                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'kick', 'zap')]
+                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'zap')]
                 if attack_actions:
                     actions = attack_actions
 
@@ -1170,11 +1170,6 @@ class Agent:
                 self.melee_attack(target_y, target_x)
                 wait_counter = 0
                 return wait_counter
-
-        elif best_action[0] == 'kick':
-            _, dy, dx = best_action
-            self.kick(self.blstats.y + dy, self.blstats.x + dx)
-            return 0
 
         elif best_action[0] == 'ranged':
             _, dy, dx = best_action

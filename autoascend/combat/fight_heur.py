@@ -7,7 +7,7 @@ from scipy import signal
 from ..glyph import G
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
-    EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full, should_avoid_melee
+    ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
 from .movement_priority import draw_monster_priority_positive, draw_monster_priority_negative
 from .utils import wielding_ranged_weapon, line_dis_from, inside
 
@@ -27,7 +27,7 @@ def melee_monster_priority(agent, monsters, monster):
         ret += 1
     # if not wielding_melee_weapon(agent):
     #     ret -= 5
-    if should_avoid_melee(agent, monster):
+    if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
         if not consider_melee_only_ranged_if_hp_full(agent, monster):
             ret -= 100
             if mon.mname == 'floating eye':
@@ -56,7 +56,7 @@ def ranged_priority(agent, dy, dx, monsters):
     for monster in monsters:
         _, my, mx, mon, _ = monster
         assert my != agent.blstats.y or mx != agent.blstats.x
-        if mon.mname not in WEAK_MONSTERS and not should_avoid_melee(agent, monster):
+        if mon.mname not in WEAK_MONSTERS + ONLY_RANGED_SLOW_MONSTERS:
             closest_mon_dis = min(closest_mon_dis, line_dis_from(agent, my, mx))
 
     if closest_mon_dis == 1:
@@ -206,9 +206,10 @@ def elbereth_action(agent, monsters):
     if not agent.can_engrave():
         return []
     adj_monsters_count = 0
+    adjacent_dangerous_monster = False
     for monster in monsters:
         _, my, mx, mon, _ = monster
-        if should_avoid_melee(agent, monster):
+        if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
             continue
         if not adjacent((my, mx), (agent.blstats.y, agent.blstats.x)):
             continue
@@ -221,9 +222,15 @@ def elbereth_action(agent, monsters):
         adj_monsters_count += 1 * multiplier
         if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
+            adjacent_dangerous_monster = True
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
+        # hypothesis: non-Rangers lack a reliable starting ranged escape, so decisively engraving Elbereth at
+        # twelve HP against an adjacent dangerous monster prevents repeated lethal early-game melee rounds.
+        if agent.character.role != agent.character.RANGER and adjacent_dangerous_monster and \
+                agent.blstats.hitpoints <= 12:
+            return [(25, ('elbereth',))]
         # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
         # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
         return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
@@ -245,15 +252,12 @@ def get_available_actions(agent, monsters):
     for monster in monsters:
         _, y, x, mon, _ = monster
         if adjacent((y, x), (agent.blstats.y, agent.blstats.x)):
+            priority = melee_monster_priority(agent, monsters, monster)
+            if agent.inventory.engraving_below_me.lower() == 'elbereth':
+                priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            if should_avoid_melee(agent, monster) and mon.mname in ('chickatrice', 'cockatrice'):
-                actions.append((30, ('kick', dy, dx)))
-            else:
-                priority = melee_monster_priority(agent, monsters, monster)
-                if agent.inventory.engraving_below_me.lower() == 'elbereth':
-                    priority -= 100
-                actions.append((priority, ('melee', dy, dx)))
+            actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):
@@ -263,7 +267,7 @@ def get_available_actions(agent, monsters):
                 pri, y, x, monster = ranged_pr
                 if agent.inventory.engraving_below_me.lower() == 'elbereth':
                     pri -= 100
-                if all(should_avoid_melee(agent, monster) for monster in monsters):
+                if all(monster[3].mname in ONLY_RANGED_SLOW_MONSTERS for monster in monsters):
                     pri += 10
                 actions.append((pri, ('ranged', dy, dx)))
 
@@ -343,7 +347,7 @@ def get_priorities(agent):
     priority -= priority[agent.blstats.y, agent.blstats.x]
 
     actions = get_available_actions(agent, monsters)
-    if not any(a[1][0] in ('melee', 'ranged', 'kick') for a in actions):
+    if not any(a[1][0] in ('melee', 'ranged') for a in actions):
         actions.extend(goto_action(agent, priority, monsters))
     return priority, actions
 
