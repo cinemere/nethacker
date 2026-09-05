@@ -213,7 +213,11 @@ def elbereth_action(agent, monsters):
         if not adjacent((my, mx), (agent.blstats.y, agent.blstats.x)):
             continue
         multiplier = np.clip(20 / agent.blstats.hitpoints, 1.0, 1.5)
-        if is_monster_faster(agent, monster):
+        # hypothesis: Monks depend on melee/unarmed combat, so using actual movement
+        # rate when valuing Elbereth keeps fast ants and unicorns from chaining attacks
+        # against all six Monk identities without changing the ranged roles' tactics.
+        actual_fast_melee_threat = agent.character.role == agent.character.MONK and mon.mmove > 12
+        if is_monster_faster(agent, monster) or actual_fast_melee_threat:
             multiplier *= 2
         if mon in WEAK_MONSTERS:
             adj_monsters_count += 0.1 * multiplier

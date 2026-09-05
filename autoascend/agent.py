@@ -1302,9 +1302,8 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # hypothesis: stopping corpse consumption at age 40 instead of the optimistic age 50
-        # avoids observed rotted-corpse poison deaths while retaining freshly killed nutrition.
-        if self.blstats.time - age_turn >= 40 and \
+        # corpse aging
+        if self.blstats.time - age_turn >= 50 and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 
