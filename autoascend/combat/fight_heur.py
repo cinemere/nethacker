@@ -206,6 +206,7 @@ def elbereth_action(agent, monsters):
     if not agent.can_engrave():
         return []
     adj_monsters_count = 0
+    adjacent_threats = 0
     for monster in monsters:
         _, my, mx, mon, _ = monster
         if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
@@ -213,23 +214,22 @@ def elbereth_action(agent, monsters):
         if not adjacent((my, mx), (agent.blstats.y, agent.blstats.x)):
             continue
         multiplier = np.clip(20 / agent.blstats.hitpoints, 1.0, 1.5)
-        # hypothesis: Monks depend on melee/unarmed combat, so using actual movement
-        # rate when valuing Elbereth keeps fast ants and unicorns from chaining attacks
-        # against all six Monk identities without changing the ranged roles' tactics.
-        actual_fast_melee_threat = agent.character.role == agent.character.MONK and mon.mmove > 12
-        if is_monster_faster(agent, monster) or actual_fast_melee_threat:
+        if is_monster_faster(agent, monster):
             multiplier *= 2
         if mon in WEAK_MONSTERS:
             adj_monsters_count += 0.1 * multiplier
             continue
+        if mon.mname not in WEAK_MONSTERS:
+            adjacent_threats += 1
         adj_monsters_count += 1 * multiplier
         if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
-    if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
-        # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
+    # hypothesis: allowing Elbereth earlier only when multiple genuine threats are adjacent prevents
+    # pack multi-attacks across roles without perturbing ordinary one-on-one fights.
+    if (agent.blstats.hitpoints < 30 or
+            (agent.blstats.hitpoints < 36 and adjacent_threats >= 2)) and adj_monsters_count > 0:
         return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
