@@ -515,7 +515,14 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                condition = lambda: self.agent.blstats.experience_level >= 8
+                # hypothesis: a ranger's reliable starting ranged kit makes food-pressure descent safe at XL 6,
+                # preventing first-floor starvation while roles that need more preparation retain the XL 8 gate.
+                condition = lambda: self.agent.blstats.experience_level >= 8 or (
+                    self.agent.character.role == Character.RANGER and
+                    self.agent.blstats.experience_level >= 6 and
+                    self.agent.blstats.hunger_state >= Hunger.HUNGRY and
+                    self.agent.inventory.items.total_nutrition() == 0
+                )
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
                 #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
