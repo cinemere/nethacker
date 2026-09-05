@@ -951,7 +951,7 @@ class Agent:
 
         for my, mx in list(zip(*np.nonzero(utils.isin(self.glyphs, G.MONS)))):
             mon = MON.permonst(self.glyphs[my][mx])
-            if combat.monster_utils.should_avoid_melee(self, mon):
+            if mon.mname in combat.monster_utils.ONLY_RANGED_SLOW_MONSTERS:
                 walkable[my, mx] = False
 
         dis = utils.bfs(y, x,
@@ -1105,7 +1105,7 @@ class Agent:
         while 1:
             monsters = self.get_visible_monsters()
             allow_attack_all = self._last_turn - self._allow_attack_all_turn < 3
-            only_ranged_slow_monsters = all([combat.monster_utils.should_avoid_melee(self, monster)
+            only_ranged_slow_monsters = all([monster[3].mname in combat.monster_utils.ONLY_RANGED_SLOW_MONSTERS
                                              and not combat.monster_utils.consider_melee_only_ranged_if_hp_full(self,
                                                                                                                 monster)
                                              for monster in monsters])
@@ -1136,7 +1136,7 @@ class Agent:
                 actions = list(filter(lambda x: x[1][0] != 'ranged', actions))
 
             if allow_attack_all:
-                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'kick', 'zap')]
+                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'zap')]
                 if attack_actions:
                     actions = attack_actions
 
@@ -1170,11 +1170,6 @@ class Agent:
                 self.melee_attack(target_y, target_x)
                 wait_counter = 0
                 return wait_counter
-
-        elif best_action[0] == 'kick':
-            _, dy, dx = best_action
-            self.kick(self.blstats.y + dy, self.blstats.x + dx)
-            return 0
 
         elif best_action[0] == 'ranged':
             _, dy, dx = best_action
@@ -1307,8 +1302,9 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # corpse aging
-        if self.blstats.time - age_turn >= 50 and \
+        # hypothesis: stopping corpse consumption at age 40 instead of the optimistic age 50
+        # avoids observed rotted-corpse poison deaths while retaining freshly killed nutrition.
+        if self.blstats.time - age_turn >= 40 and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 
@@ -1422,7 +1418,10 @@ class Agent:
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
         if (
-                (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
+                # hypothesis: identified healing potions are currently held until a hero is
+                # already in one-round kill range.  Spending one below half HP prevents
+                # early multi-attack deaths for every role without risking unidentified items.
+                (self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints
                  or self.blstats.hitpoints < 8) and items
         ):
             yield True
@@ -1439,7 +1438,10 @@ class Agent:
         if (
                 (self.is_safe_to_pray(500) and
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
-                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 6))
+                  * self.blstats.max_hitpoints or
+                  # hypothesis: praying at twelve HP instead of waiting below six spends the
+                  # cooled-down emergency resource before ordinary foes can land a lethal round.
+                  self.blstats.hitpoints <= 12))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True
@@ -1463,19 +1465,9 @@ class Agent:
     def eat_from_inventory(self):
         if self.blstats.hunger_state < Hunger.HUNGRY:
             yield False
-        foods = list(flatten_items(self.inventory.items))
-        # hypothesis: deferring slow-to-open tins while ready-to-eat food is available prevents weak heroes,
-        # especially Tourists, from giving nearby monsters many free attacks without sacrificing emergency food.
-        foods.sort(key=lambda item: item.is_unambiguous() and item.object.name == 'tin')
-        for item in foods:
-            # hypothesis: refusing nutritionally tiny eggs (whose species is often hidden) and identified
-            # cockatrice tins as hunger food prevents deterministic petrification without sacrificing useful food.
-            petrifying_food = item.is_unambiguous() and (item.object.name == 'egg' or (
-                item.object.name == 'tin' and item.monster_id is not None and
-                ord(MON.permonst(item.monster_id).mlet) == MON.S_COCKATRICE))
+        for item in flatten_items(self.inventory.items):
             if item.category == nh.FOOD_CLASS and \
                     item.objs[0].name != 'sprig of wolfsbane' and \
-                    not petrifying_food and \
                     (not item.is_corpse() or
                      item.monster_id in [MON.from_name(n) - nh.GLYPH_MON_OFF for n in ['lizard', 'lichen']]):
                 yield True
