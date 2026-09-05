@@ -226,9 +226,10 @@ def elbereth_action(agent, monsters):
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: non-Rangers lack a reliable starting ranged escape, so decisively engraving Elbereth at
-        # twelve HP against an adjacent dangerous monster prevents repeated lethal early-game melee rounds.
-        if agent.character.role != agent.character.RANGER and adjacent_dangerous_monster and \
+        # hypothesis: non-lawful, non-Ranger heroes lack both a reliable starting ranged escape and the
+        # lawful Excalibur route, so decisive low-HP Elbereth use prevents otherwise fatal melee rounds.
+        if agent.character.role != agent.character.RANGER and \
+                agent.character.alignment != agent.character.LAWFUL and adjacent_dangerous_monster and \
                 agent.blstats.hitpoints <= 12:
             return [(25, ('elbereth',))]
         # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
