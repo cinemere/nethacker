@@ -101,6 +101,15 @@ class ItemPriority(ItemPriorityBase):
                            key=lambda x: -x.nutrition_per_weight() - 1000 * (x.objs[0].name == 'sprig of wolfsbane')):
             add_item(item)
 
+        # hypothesis (starvation avoidance): lizard and lichen corpses never rot and are always
+        # safe to eat, and eat_from_inventory already accepts them — but the food-pickup rule
+        # above skips every corpse, so the bot walks past permanent emergency rations and later
+        # starves when a level runs out of food. Stock them.
+        for item in items:
+            if item.is_corpse() and item.monster_id in [
+                    MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
+                add_item(item)
+
         if self._take_sacrificial_corpses:
             for item in filter(self.agent.global_logic.can_sacrify, items):
                 add_item(item)
@@ -515,14 +524,7 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                # hypothesis: a ranger's reliable starting ranged kit makes food-pressure descent safe at XL 6,
-                # preventing first-floor starvation while roles that need more preparation retain the XL 8 gate.
-                condition = lambda: self.agent.blstats.experience_level >= 8 or (
-                    self.agent.character.role == Character.RANGER and
-                    self.agent.blstats.experience_level >= 6 and
-                    self.agent.blstats.hunger_state >= Hunger.HUNGRY and
-                    self.agent.inventory.items.total_nutrition() == 0
-                )
+                condition = lambda: self.agent.blstats.experience_level >= 8
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
                 #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
