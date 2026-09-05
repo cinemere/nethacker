@@ -247,14 +247,13 @@ def get_available_actions(agent, monsters):
         if adjacent((y, x), (agent.blstats.y, agent.blstats.x)):
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            protected_from_touch = agent.inventory.items.gloves is not None
-            if not should_avoid_melee(agent, monster) or protected_from_touch:
+            if should_avoid_melee(agent, monster) and mon.mname in ('chickatrice', 'cockatrice'):
+                actions.append((30, ('kick', dy, dx)))
+            else:
                 priority = melee_monster_priority(agent, monsters, monster)
                 if agent.inventory.engraving_below_me.lower() == 'elbereth':
                     priority -= 100
                 actions.append((priority, ('melee', dy, dx)))
-            elif mon.mname in ('chickatrice', 'cockatrice'):
-                actions.append((40, ('kick', dy, dx)))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):
@@ -344,7 +343,7 @@ def get_priorities(agent):
     priority -= priority[agent.blstats.y, agent.blstats.x]
 
     actions = get_available_actions(agent, monsters)
-    if not any(a[1][0] in ('melee', 'kick', 'ranged') for a in actions):
+    if not any(a[1][0] in ('melee', 'ranged', 'kick') for a in actions):
         actions.extend(goto_action(agent, priority, monsters))
     return priority, actions
 

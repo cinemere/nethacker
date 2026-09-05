@@ -10,12 +10,12 @@ WEIRD_MONSTERS = ['leprechaun', 'nymph']
 
 def should_avoid_melee(agent, monster):
     mon = monster if hasattr(monster, 'mname') else monster[3]
-    # hypothesis: monks should avoid bare-handed chickatrice attacks, using
-    # ordinary melee only with gloves and kicks/ranged tactics otherwise.
+    # hypothesis: Monks' forced bare-handed attacks make chickatrices an instant
+    # petrification hazard, so they should use the existing ranged-only behavior
+    # for these monsters while weapon-using roles retain their normal tactics.
     return mon.mname in ONLY_RANGED_SLOW_MONSTERS or (
         agent.character.role == agent.character.MONK and
-        mon.mname in ('chickatrice', 'cockatrice') and
-        agent.inventory.items.gloves is None
+        mon.mname in ('chickatrice', 'cockatrice')
     )
 
 

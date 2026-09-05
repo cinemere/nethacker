@@ -1136,7 +1136,7 @@ class Agent:
                 actions = list(filter(lambda x: x[1][0] != 'ranged', actions))
 
             if allow_attack_all:
-                attack_actions = [a for a in actions if a[1][0] in ('melee', 'kick', 'ranged', 'zap')]
+                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'kick', 'zap')]
                 if attack_actions:
                     actions = attack_actions
 
@@ -1171,6 +1171,11 @@ class Agent:
                 wait_counter = 0
                 return wait_counter
 
+        elif best_action[0] == 'kick':
+            _, dy, dx = best_action
+            self.kick(self.blstats.y + dy, self.blstats.x + dx)
+            return 0
+
         elif best_action[0] == 'ranged':
             _, dy, dx = best_action
             target_y = self.blstats.y + dy
@@ -1186,11 +1191,6 @@ class Agent:
                 fired = self.fire(ammo, dir)
                 assert fired, (ammo, dir)
                 return wait_counter
-
-        elif best_action[0] == 'kick':
-            _, dy, dx = best_action
-            self.kick(self.blstats.y + dy, self.blstats.x + dx)
-            return 0
 
         elif best_action[0] == 'elbereth':
             assert self.inventory.engraving_below_me.lower() != 'elbereth'
@@ -1307,9 +1307,8 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # hypothesis: stopping corpse consumption at age 40 instead of the optimistic age 50
-        # avoids observed rotted-corpse poison deaths while retaining freshly killed nutrition.
-        if self.blstats.time - age_turn >= 40 and \
+        # corpse aging
+        if self.blstats.time - age_turn >= 50 and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 
