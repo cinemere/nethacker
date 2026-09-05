@@ -14,6 +14,10 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
+    # hypothesis: refusing melee with contact-petrifying monsters lets heroes use the existing
+    # retreat, ranged, wand, or Elbereth options instead of risking an immediately fatal stoning attack.
+    if mon.mname in ('chickatrice', 'cockatrice'):
+        return -1000
     ret = 1
     if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
         ret -= 20
@@ -205,8 +209,11 @@ def elbereth_action(agent, monsters):
         return []
     if not agent.can_engrave():
         return []
+    if any(mon.mname in ('chickatrice', 'cockatrice') and
+           adjacent((my, mx), (agent.blstats.y, agent.blstats.x))
+           for _, my, mx, mon, _ in monsters):
+        return [(100, ('elbereth',))]
     adj_monsters_count = 0
-    adjacent_dangerous_monster = False
     for monster in monsters:
         _, my, mx, mon, _ = monster
         if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
@@ -222,16 +229,9 @@ def elbereth_action(agent, monsters):
         adj_monsters_count += 1 * multiplier
         if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
-            adjacent_dangerous_monster = True
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: non-lawful, non-Ranger heroes lack both a reliable starting ranged escape and the
-        # lawful Excalibur route, so decisive low-HP Elbereth use prevents otherwise fatal melee rounds.
-        if agent.character.role != agent.character.RANGER and \
-                agent.character.alignment != agent.character.LAWFUL and adjacent_dangerous_monster and \
-                agent.blstats.hitpoints <= 12:
-            return [(25, ('elbereth',))]
         # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
         # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
         return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
