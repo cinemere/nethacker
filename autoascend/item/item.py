@@ -213,9 +213,7 @@ class Item:
     def is_offensive_usable_wand(self):
         if len(self.objs) != 1:
             return False
-        # hypothesis: using identified striking wands adds a non-bouncing
-        # ranged attack instead of leaving a common offensive resource unused.
-        if not self.is_ray_wand() and self.objs[0] != O.from_name('striking', nh.WAND_CLASS):
+        if not self.is_ray_wand():
             return False
         if self.uses == 'no charges':
             # TODO: is it right ?

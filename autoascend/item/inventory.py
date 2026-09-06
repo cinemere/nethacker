@@ -1017,12 +1017,6 @@ class Inventory:
         if self.agent.character.prop.polymorph:
             yield False  # TODO: only for handless monsters (which cannot write)
 
-        # hypothesis: postponing unknown-wand engraving until a monk is fully
-        # healed and robust prevents early cursed-wand explosions from being lethal.
-        if self.agent.blstats.hitpoints < max(20, self.agent.blstats.max_hitpoints):
-            yield False
-            return
-
         self.skip_engrave_counter -= 1
         if self.agent.character.prop.blind or self.skip_engrave_counter > 0:
             yield False

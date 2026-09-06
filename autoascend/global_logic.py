@@ -516,10 +516,8 @@ class GlobalLogic:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
                 condition = lambda: self.agent.blstats.experience_level >= 8
-                # hypothesis: when level-1 farming runs out of carried food, descending to seek
-                # nutrition is safer and advances farther than waiting for late dangerous spawns.
-                explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
-                                                   self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
+                # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
+                #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
 
             elif self.milestone == Milestone.FIND_SOKOBAN:
@@ -559,13 +557,7 @@ class GlobalLogic:
                 level = (Level.DUNGEONS_OF_DOOM, 100)
 
             if condition():
-                # hypothesis: once a monk reaches XL8, descending the main dungeon
-                # converts its farmed strength into progression without exposing it
-                # to Minetown's dense fights or Sokoban branch-search stalls.
-                if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                    self.milestone = Milestone.GO_DOWN
-                else:
-                    self.milestone = Milestone(int(self.milestone) + 1)
+                self.milestone = Milestone(int(self.milestone) + 1)
                 continue
 
 
@@ -613,6 +605,21 @@ class GlobalLogic:
                 .until(self.agent, condition)
             ).run()
 
+    @Strategy.wrap
+    def recover_between_fights(self):
+        # hypothesis: resting safely between fights prevents accumulated wounds
+        # from making the next ordinary monster lethal across roles.
+        def needs_rest():
+            return (self.agent.blstats.hitpoints < 0.9 * self.agent.blstats.max_hitpoints
+                    and self.agent.blstats.hunger_state < Hunger.HUNGRY
+                    and not self.agent.get_visible_monsters())
+
+        if not needs_rest():
+            yield False
+        yield True
+        while needs_rest():
+            self.agent.search()
+
     def global_strategy(self):
         return (
             self.current_strategy().repeat()
@@ -628,6 +635,9 @@ class GlobalLogic:
             ])
             .preempt(self.agent, [
                 self.wait_out_unexpected_state_strategy(),
+            ])
+            .preempt(self.agent, [
+                self.recover_between_fights(),
             ])
             .preempt(self.agent, [
                 self.agent.cure_disease().every(5),
