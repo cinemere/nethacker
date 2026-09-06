@@ -516,8 +516,10 @@ class GlobalLogic:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
                 condition = lambda: self.agent.blstats.experience_level >= 8
-                # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
-                #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
+                # hypothesis: when level-1 farming runs out of carried food, descending to seek
+                # nutrition is safer and advances farther than waiting for late dangerous spawns.
+                explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
+                                                   self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
 
             elif self.milestone == Milestone.FIND_SOKOBAN:
@@ -557,7 +559,13 @@ class GlobalLogic:
                 level = (Level.DUNGEONS_OF_DOOM, 100)
 
             if condition():
-                self.milestone = Milestone(int(self.milestone) + 1)
+                # hypothesis: once a monk reaches XL8, descending the main dungeon
+                # converts its farmed strength into progression without exposing it
+                # to Minetown's dense fights or Sokoban branch-search stalls.
+                if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
+                    self.milestone = Milestone.GO_DOWN
+                else:
+                    self.milestone = Milestone(int(self.milestone) + 1)
                 continue
 
 

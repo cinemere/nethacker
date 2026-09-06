@@ -812,6 +812,11 @@ class Agent:
 
     def search(self, max_count=1):
         assert max_count >= 1
+        # hypothesis: wounded pre-XL7 monks searching one turn at a time can react
+        # to an approaching monster instead of taking five uninterruptible combat turns.
+        if max_count > 1 and self.blstats.experience_level < 7 and \
+                self.blstats.hitpoints < 0.8 * self.blstats.max_hitpoints:
+            max_count = 1
         with self.panic_if_position_changes():
             with self.atom_operation():
                 if max_count > 1:
@@ -1302,8 +1307,9 @@ class Agent:
         if permonst.mflags2 & race_flag:
             return False
 
-        # corpse aging
-        if self.blstats.time - age_turn >= 50 and \
+        # hypothesis: a 30-turn freshness limit avoids lethal, already-aged corpses
+        # whose observed drop time makes the old 50-turn estimate overoptimistic.
+        if self.blstats.time - age_turn >= 30 and \
                 monster_id not in [MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
             return False
 
@@ -1416,16 +1422,9 @@ class Agent:
 
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
-        nearby_threat = any(
-            distance <= 2 for distance, *_ in self.get_visible_monsters()
-        )
-        # hypothesis: drinking an identified healing potion before a nearby monster gets a
-        # second low-HP attack prevents common combat deaths across fragile roles, while
-        # retaining the old threshold for damage taken safely during exploration.
         if (
                 (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
-                 or self.blstats.hitpoints < 8
-                 or (nearby_threat and self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints)) and items
+                 or self.blstats.hitpoints < 8) and items
         ):
             yield True
             self.inventory.quaff(items[0])
@@ -1465,19 +1464,9 @@ class Agent:
     def eat_from_inventory(self):
         if self.blstats.hunger_state < Hunger.HUNGRY:
             yield False
-        foods = list(flatten_items(self.inventory.items))
-        # hypothesis: deferring slow-to-open tins while ready-to-eat food is available prevents weak heroes,
-        # especially Tourists, from giving nearby monsters many free attacks without sacrificing emergency food.
-        foods.sort(key=lambda item: item.is_unambiguous() and item.object.name == 'tin')
-        for item in foods:
-            # hypothesis: refusing nutritionally tiny eggs (whose species is often hidden) and identified
-            # cockatrice tins as hunger food prevents deterministic petrification without sacrificing useful food.
-            petrifying_food = item.is_unambiguous() and (item.object.name == 'egg' or (
-                item.object.name == 'tin' and item.monster_id is not None and
-                ord(MON.permonst(item.monster_id).mlet) == MON.S_COCKATRICE))
+        for item in flatten_items(self.inventory.items):
             if item.category == nh.FOOD_CLASS and \
                     item.objs[0].name != 'sprig of wolfsbane' and \
-                    not petrifying_food and \
                     (not item.is_corpse() or
                      item.monster_id in [MON.from_name(n) - nh.GLYPH_MON_OFF for n in ['lizard', 'lichen']]):
                 yield True

@@ -15,8 +15,6 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
-        ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
@@ -186,7 +184,7 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(agent, monster):
+                elif is_dangerous_monster(monster):
                     priority += p * 25
                 else:
                     priority += min(p, 1) * 10
@@ -205,6 +203,13 @@ def elbereth_action(agent, monsters):
         return []
     if not agent.can_engrave():
         return []
+    # hypothesis: immediately engraving Elbereth beside a cockatrice and holding
+    # the ward until it backs away prevents an unarmed, unshod monk's attacks
+    # from self-petrifying.
+    if any(mon.mname in ('cockatrice', 'chickatrice') and
+           adjacent((my, mx), (agent.blstats.y, agent.blstats.x))
+           for _, my, mx, mon, _ in monsters):
+        return [(100, ('elbereth',))]
     adj_monsters_count = 0
     for monster in monsters:
         _, my, mx, mon, _ = monster
@@ -215,25 +220,25 @@ def elbereth_action(agent, monsters):
         multiplier = np.clip(20 / agent.blstats.hitpoints, 1.0, 1.5)
         if is_monster_faster(agent, monster):
             multiplier *= 2
-        # hypothesis: recognizing weak monsters by name avoids wasting turns
-        # engraving against harmless foes, while retaining defense at critical HP.
-        if mon.mname in WEAK_MONSTERS and agent.blstats.hitpoints > 4:
+        if mon in WEAK_MONSTERS:
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(agent, monster):
+        if is_dangerous_monster(monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: giving the existing Elbereth escape enough priority to beat ordinary melee at
-        # roughly half HP prevents dangerous adjacent monsters from turning recoverable fights into deaths.
-        return [(5 + 25 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
+        return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
 
 def wait_action(agent, monsters):
     if agent.inventory.engraving_below_me.lower() == 'elbereth':
+        if any(mon.mname in ('cockatrice', 'chickatrice') and
+               adjacent((my, mx), (agent.blstats.y, agent.blstats.x))
+               for _, my, mx, mon, _ in monsters):
+            return [(100, ('wait',))]
         player_hp_ratio = agent.blstats.hitpoints / agent.blstats.max_hitpoints
         priority = 30 - player_hp_ratio * 40
         return [(priority, ('wait',))]
