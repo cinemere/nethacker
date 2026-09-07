@@ -101,6 +101,15 @@ class ItemPriority(ItemPriorityBase):
                            key=lambda x: -x.nutrition_per_weight() - 1000 * (x.objs[0].name == 'sprig of wolfsbane')):
             add_item(item)
 
+        # hypothesis (starvation avoidance): lizard and lichen corpses never rot and are always
+        # safe to eat, and eat_from_inventory already accepts them — but the food-pickup rule
+        # above skips every corpse, so the bot walks past permanent emergency rations and later
+        # starves when a level runs out of food. Stock them.
+        for item in items:
+            if item.is_corpse() and item.monster_id in [
+                    MON.id_from_name('lizard'), MON.id_from_name('lichen')]:
+                add_item(item)
+
         if self._take_sacrificial_corpses:
             for item in filter(self.agent.global_logic.can_sacrify, items):
                 add_item(item)
@@ -605,21 +614,6 @@ class GlobalLogic:
                 .until(self.agent, condition)
             ).run()
 
-    @Strategy.wrap
-    def recover_between_fights(self):
-        # hypothesis: recovering safely to 90% health prevents accumulated wounds
-        # from making the next fight lethal without waiting for every last HP.
-        def needs_rest():
-            return (self.agent.blstats.hitpoints < 0.9 * self.agent.blstats.max_hitpoints
-                    and self.agent.blstats.hunger_state < Hunger.HUNGRY
-                    and not self.agent.get_visible_monsters())
-
-        if not needs_rest():
-            yield False
-        yield True
-        while needs_rest():
-            self.agent.search()
-
     def global_strategy(self):
         return (
             self.current_strategy().repeat()
@@ -635,9 +629,6 @@ class GlobalLogic:
             ])
             .preempt(self.agent, [
                 self.wait_out_unexpected_state_strategy(),
-            ])
-            .preempt(self.agent, [
-                self.recover_between_fights(),
             ])
             .preempt(self.agent, [
                 self.agent.cure_disease().every(5),

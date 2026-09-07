@@ -17,6 +17,12 @@ def melee_monster_priority(agent, monsters, monster):
     ret = 1
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
+    # hypothesis: fast monsters get another attack whenever a retreat loses the
+    # initiative, so favoring melee at every HP total below 16 turns bats, dogs,
+    # and bees into avoidable deaths; let the existing escape map choose space
+    # or Elbereth while there is still a survivable margin.
+    if is_monster_faster(agent, monster) and agent.blstats.hitpoints <= 16:
+        ret -= 20
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
         ret -= 6
     if mon.mname in EXPLODING_MONSTERS:

@@ -15,6 +15,8 @@ def is_monster_faster(agent, monster):
 
 
 def imminent_death_on_melee(agent, monster):
+    if is_monster_faster(agent, monster):
+        return agent.blstats.hitpoints <= 16
     if is_dangerous_monster(monster):
         return agent.blstats.hitpoints <= 16
     return agent.blstats.hitpoints <= 8
@@ -31,4 +33,7 @@ def is_dangerous_monster(monster):
 
 
 def consider_melee_only_ranged_if_hp_full(agent, monster):
-    return monster[3].mname in ('brown mold', 'blue jelly') and agent.blstats.hitpoints == agent.blstats.max_hitpoints
+    # hypothesis: avoid melee against blue jellies even at full HP; their cold
+    # retaliation heals them, making repeated attacks a costly attrition fight.
+    # Use the existing ranged-or-avoid policy while retaining brown-mold fights.
+    return monster[3].mname == 'brown mold' and agent.blstats.hitpoints == agent.blstats.max_hitpoints
