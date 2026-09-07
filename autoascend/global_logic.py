@@ -607,8 +607,8 @@ class GlobalLogic:
 
     @Strategy.wrap
     def recover_between_fights(self):
-        # hypothesis: resting safely between fights prevents accumulated wounds
-        # from making the next ordinary monster lethal across roles.
+        # hypothesis: recovering safely to 90% health prevents accumulated wounds
+        # from making the next fight lethal without waiting for every last HP.
         def needs_rest():
             return (self.agent.blstats.hitpoints < 0.9 * self.agent.blstats.max_hitpoints
                     and self.agent.blstats.hunger_state < Hunger.HUNGRY
