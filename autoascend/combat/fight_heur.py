@@ -2,7 +2,6 @@ from collections import defaultdict
 from itertools import product
 
 import numpy as np
-import nle.nethack as nh
 from scipy import signal
 
 from ..glyph import G
@@ -205,6 +204,7 @@ def elbereth_action(agent, monsters):
     if not agent.can_engrave():
         return []
     adj_monsters_count = 0
+    adjacent_dangerous = False
     for monster in monsters:
         _, my, mx, mon, _ = monster
         if mon.mname in ONLY_RANGED_SLOW_MONSTERS:
@@ -220,10 +220,14 @@ def elbereth_action(agent, monsters):
         adj_monsters_count += 1 * multiplier
         if is_dangerous_monster(monster):
             adj_monsters_count += 2 * multiplier
+            adjacent_dangerous = True
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
+        # hypothesis: engraving Elbereth slightly earlier against high-damage
+        # adjacent monsters prevents them finishing already-weakened heroes.
+        danger_bonus = 5 if adjacent_dangerous else 0
+        return [(-15 + danger_bonus + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
 
@@ -242,24 +246,12 @@ def get_available_actions(agent, monsters):
     for monster in monsters:
         _, y, x, mon, _ = monster
         if adjacent((y, x), (agent.blstats.y, agent.blstats.x)):
-            # hypothesis: wielding an object against known or hallucination-hidden
-            # cockatrices prevents bare-handed petrification.
-            protected_touch_attack = agent.inventory.items.gloves is None and \
-                    (mon.mname in ('cockatrice', 'chickatrice') or agent.character.prop.hallu)
-            wielding_object = agent.inventory.items.main_hand is not None or any(
-                    item.equipped and not item.is_armor() and
-                    item.category not in (nh.RING_CLASS, nh.AMULET_CLASS)
-                    for item in agent.inventory.items)
-            if protected_touch_attack and not wielding_object:
-                if not any(not item.equipped and not item.is_armor() and not item.is_corpse()
-                           for item in agent.inventory.items):
-                    continue
             priority = melee_monster_priority(agent, monsters, monster)
             if agent.inventory.engraving_below_me.lower() == 'elbereth':
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            actions.append((priority, ('melee', dy, dx, protected_touch_attack)))
+            actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):

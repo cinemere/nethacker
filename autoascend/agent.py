@@ -1160,20 +1160,10 @@ class Agent:
                 self.move(target_y, target_x)
                 return wait_counter
         elif best_action[0] == 'melee':
-            _, dy, dx, protected_touch_attack = best_action
+            _, dy, dx = best_action
             target_y = self.blstats.y + dy
             target_x = self.blstats.x + dx
-            wielding_object = self.inventory.items.main_hand is not None or any(
-                    item.equipped and not item.is_armor() and
-                    item.category not in (nh.RING_CLASS, nh.AMULET_CLASS)
-                    for item in self.inventory.items)
-            if protected_touch_attack and not wielding_object:
-                safe_objects = [item for item in self.inventory.items if
-                                not item.equipped and not item.is_armor() and not item.is_corpse()]
-                safe_object = min(safe_objects, key=lambda item: (not item.is_weapon(), item.weight()))
-                self.inventory.wield(safe_object)
-                return wait_counter
-            if not protected_touch_attack and self.wield_best_melee_weapon():
+            if self.wield_best_melee_weapon():
                 return wait_counter
             with self.env.debug_tiles([[self.blstats.y, self.blstats.x],
                                        [target_y, target_x]], color=(255, 0, 255), is_path=True):
