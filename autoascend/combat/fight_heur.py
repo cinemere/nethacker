@@ -4,7 +4,7 @@ from itertools import product
 import numpy as np
 from scipy import signal
 
-from ..glyph import G
+from ..glyph import G, MON
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -246,7 +246,14 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            actions.append((priority, ('melee', dy, dx)))
+            # hypothesis: kicking petrifying monsters when bare-handed prevents
+            # strong unarmed characters from dying on contact with them.
+            bare_handed = agent.inventory.items.main_hand is None
+            bare_hands = agent.inventory.items.gloves is None
+            if ord(mon.mlet) == MON.S_COCKATRICE and bare_handed and bare_hands:
+                actions.append((priority, ('kick', dy, dx)))
+            else:
+                actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):
@@ -336,7 +343,7 @@ def get_priorities(agent):
     priority -= priority[agent.blstats.y, agent.blstats.x]
 
     actions = get_available_actions(agent, monsters)
-    if not any(a[1][0] in ('melee', 'ranged') for a in actions):
+    if not any(a[1][0] in ('melee', 'kick', 'ranged') for a in actions):
         actions.extend(goto_action(agent, priority, monsters))
     return priority, actions
 
