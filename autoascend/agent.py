@@ -1137,7 +1137,7 @@ class Agent:
                 actions = list(filter(lambda x: x[1][0] != 'ranged', actions))
 
             if allow_attack_all:
-                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'zap')]
+                attack_actions = [a for a in actions if a[1][0] in ('melee', 'kick', 'ranged', 'zap')]
                 if attack_actions:
                     actions = attack_actions
 
@@ -1171,6 +1171,12 @@ class Agent:
                 self.melee_attack(target_y, target_x)
                 wait_counter = 0
                 return wait_counter
+
+        elif best_action[0] == 'kick':
+            _, dy, dx = best_action
+            self.kick(self.blstats.y + dy, self.blstats.x + dx)
+            wait_counter = 0
+            return wait_counter
 
         elif best_action[0] == 'ranged':
             _, dy, dx = best_action
@@ -1434,9 +1440,8 @@ class Agent:
 
         if (
                 (self.is_safe_to_pray(500) and
-                 # hypothesis: a two-hit prayer reserve prevents lethal damage
-                 # spikes, provided a Monk conduct penalty has not made
-                 # an otherwise off-cooldown prayer unsafe.
+                 # hypothesis: delaying low-HP prayer after a Monk breaks vegetarian
+                 # conduct avoids divine wrath while alignment has not yet recovered.
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
                   * self.blstats.max_hitpoints or
                   self.blstats.hitpoints < (12 if self.character.role != Character.MONK or
