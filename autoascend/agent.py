@@ -1172,6 +1172,12 @@ class Agent:
                 wait_counter = 0
                 return wait_counter
 
+        elif best_action[0] == 'kick':
+            _, dy, dx = best_action
+            self.kick(self.blstats.y + dy, self.blstats.x + dx)
+            wait_counter = 0
+            return wait_counter
+
         elif best_action[0] == 'ranged':
             _, dy, dx = best_action
             target_y = self.blstats.y + dy
@@ -1187,11 +1193,6 @@ class Agent:
                 fired = self.fire(ammo, dir)
                 assert fired, (ammo, dir)
                 return wait_counter
-
-        elif best_action[0] == 'kick':
-            _, dy, dx = best_action
-            self.kick(self.blstats.y + dy, self.blstats.x + dx)
-            return 0
 
         elif best_action[0] == 'elbereth':
             assert self.inventory.engraving_below_me.lower() != 'elbereth'
@@ -1439,14 +1440,18 @@ class Agent:
 
         if (
                 (self.is_safe_to_pray(500) and
-                 # hypothesis: a two-hit prayer reserve prevents lethal damage
-                 # spikes, provided a Monk conduct penalty has not made
-                 # an otherwise off-cooldown prayer unsafe.
+                 # hypothesis: delaying low-HP prayer after a Monk breaks vegetarian
+                 # conduct avoids divine wrath while alignment has not yet recovered.
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
                   * self.blstats.max_hitpoints or
                   self.blstats.hitpoints < (12 if self.character.role != Character.MONK or
                                             self._monk_meat_meals == 0 else 8)))
-                or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
+                or (self.is_safe_to_pray(400) and
+                    # hypothesis: letting Archaeologists pray at weak hunger
+                    # prevents fainting during their long first-floor farm.
+                    (self.blstats.hunger_state >= Hunger.FAINTING or
+                     (self.character.role == Character.ARCHEOLOGIST and
+                      self.blstats.hunger_state >= Hunger.WEAK)))
         ):
             yield True
             self.pray()

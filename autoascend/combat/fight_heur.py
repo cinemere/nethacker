@@ -246,16 +246,13 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            # Avoid unprotected contact with petrifiers: kick through boots, or
-            # strongly prefer an available ranged or movement action.
-            unprotected = (ord(mon.mlet) == MON.S_COCKATRICE and
-                           agent.inventory.items.main_hand is None and
-                           agent.inventory.items.gloves is None)
-            if unprotected and agent.inventory.items.boots is not None:
+            # hypothesis: kicking petrifying monsters when bare-handed prevents
+            # strong unarmed characters from dying on contact with them.
+            bare_handed = agent.inventory.items.main_hand is None
+            bare_hands = agent.inventory.items.gloves is None
+            if ord(mon.mlet) == MON.S_COCKATRICE and bare_handed and bare_hands:
                 actions.append((priority, ('kick', dy, dx)))
             else:
-                if unprotected:
-                    priority -= 100
                 actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions

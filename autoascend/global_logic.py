@@ -515,8 +515,8 @@ class GlobalLogic:
         while 1:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                # hypothesis: role-aware emergency overrides prevent deterministic
-                # fatal states without perturbing normal farming and combat.
+                # hypothesis: letting a fainting Archaeologist leave dungeon level one at
+                # experience level six avoids starvation without cutting healthy farming short.
                 condition = lambda: (
                     self.agent.blstats.experience_level >= 8 or
                     (self.agent.character.role == Character.ARCHEOLOGIST and
