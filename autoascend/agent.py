@@ -1433,10 +1433,12 @@ class Agent:
 
         if (
                 (self.is_safe_to_pray(500) and
-                 # hypothesis: praying with a two-hit HP reserve prevents lethal
-                 # damage spikes while preserving the renewable prayer resource.
+                 # hypothesis: a three-hit prayer reserve for fragile
+                 # archaeologists prevents lethal spikes, while the established
+                 # two-hit reserve avoids wasting monks' renewable prayer.
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
-                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 12))
+                  * self.blstats.max_hitpoints or self.blstats.hitpoints <
+                  (16 if self.character.role == Character.ARCHEOLOGIST else 12)))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True
