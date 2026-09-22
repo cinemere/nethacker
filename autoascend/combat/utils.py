@@ -28,6 +28,8 @@ def action_str(agent, action):
         return f'{priority}me:{a[1]},{a[2]}'
     elif a[0] == 'pickup':
         return f'{priority}{a[0][0]}:{len(a[1])}'
+    elif a[0] == 'wield':
+        return f'{priority}wield'
     elif a[0] == 'zap':
         wand = a[3]
         letter = agent.inventory.items.get_letter(wand)

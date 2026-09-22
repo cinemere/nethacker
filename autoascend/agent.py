@@ -1160,10 +1160,12 @@ class Agent:
                 self.move(target_y, target_x)
                 return wait_counter
         elif best_action[0] == 'melee':
-            _, dy, dx = best_action
+            _, dy, dx, monster_name = best_action
             target_y = self.blstats.y + dy
             target_x = self.blstats.x + dx
-            if self.wield_best_melee_weapon():
+            keep_petrification_weapon = monster_name in ('chickatrice', 'cockatrice') and \
+                self.inventory.items.gloves is None
+            if not keep_petrification_weapon and self.wield_best_melee_weapon():
                 return wait_counter
             with self.env.debug_tiles([[self.blstats.y, self.blstats.x],
                                        [target_y, target_x]], color=(255, 0, 255), is_path=True):
@@ -1222,6 +1224,10 @@ class Agent:
             else:
                 items_to_pickup = combat.fight_heur.decide_what_to_pickup(self)
             self.inventory.pickup(items_to_pickup)
+            return wait_counter
+        elif best_action[0] == 'wield':
+            _, weapon = best_action
+            self.inventory.wield(weapon)
             return wait_counter
         elif best_action[0] == 'go_to':
             _, target_y, target_x = best_action
