@@ -213,7 +213,9 @@ def elbereth_action(agent, monsters):
         multiplier = np.clip(20 / agent.blstats.hitpoints, 1.0, 1.5)
         if is_monster_faster(agent, monster):
             multiplier *= 2
-        if mon in WEAK_MONSTERS:
+        # hypothesis: recognizing weak monsters by name avoids wasting a combat
+        # turn engraving Elbereth when a low-risk melee attack should win.
+        if mon.mname in WEAK_MONSTERS:
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
@@ -241,22 +243,12 @@ def get_available_actions(agent, monsters):
     for monster in monsters:
         _, y, x, mon, _ = monster
         if adjacent((y, x), (agent.blstats.y, agent.blstats.x)):
-            if mon.mname in ('chickatrice', 'cockatrice') and \
-                    agent.inventory.items.gloves is None and \
-                    agent.inventory.items.main_hand is None:
-                # hypothesis: wielding a carried weapon before contact with a
-                # cockatrice prevents instant bare-handed petrification.
-                safe_weapons = [item for item in agent.inventory.items
-                                if item.is_weapon() and item.status in (item.UNCURSED, item.BLESSED)]
-                if safe_weapons:
-                    actions.append((100, ('wield', safe_weapons[0])))
-                continue
             priority = melee_monster_priority(agent, monsters, monster)
             if agent.inventory.engraving_below_me.lower() == 'elbereth':
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            actions.append((priority, ('melee', dy, dx, mon.mname)))
+            actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):
