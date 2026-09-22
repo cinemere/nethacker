@@ -1251,6 +1251,14 @@ class Agent:
     def _is_corpse_editable(self, monster_id, age_turn):
         permonst = MON.permonst(monster_id)
 
+        # hypothesis: preserving a Monk's vegetarian discipline through the
+        # vulnerable opening prevents early divine wrath while later restoring
+        # the corpse nutrition needed for long runs.
+        if self.character.role == Character.MONK and \
+                ord(permonst.mlet) not in [MON.S_BLOB, MON.S_JELLY, MON.S_FUNGUS] and \
+                self.blstats.experience_level < 5:
+            return False
+
         # TODO: read intrinsics
         if self.character.race != Character.ORC and permonst.mflags1 & MON.M1_POIS != 0:
             return False
