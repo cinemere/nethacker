@@ -1433,8 +1433,10 @@ class Agent:
 
         if (
                 (self.is_safe_to_pray(500) and
+                 # hypothesis: praying just before the original critical-HP
+                 # cutoff leaves a two-hit safety margin without wasting prayer.
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
-                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 6))
+                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 8))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True
