@@ -246,12 +246,16 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            # Bare-handed attacks are unsafe against this monster family.
-            if (ord(mon.mlet) == MON.S_COCKATRICE and
-                    agent.inventory.items.main_hand is None and
-                    agent.inventory.items.gloves is None):
+            # Avoid unprotected contact with petrifiers: kick through boots, or
+            # strongly prefer an available ranged or movement action.
+            unprotected = (ord(mon.mlet) == MON.S_COCKATRICE and
+                           agent.inventory.items.main_hand is None and
+                           agent.inventory.items.gloves is None)
+            if unprotected and agent.inventory.items.boots is not None:
                 actions.append((priority, ('kick', dy, dx)))
             else:
+                if unprotected:
+                    priority -= 100
                 actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions

@@ -516,7 +516,7 @@ class GlobalLogic:
             explore_stairs_condition = lambda: False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
                 # hypothesis: role-aware emergency overrides prevent deterministic
-                # deaths without perturbing normal farming and combat decisions.
+                # fatal states without perturbing normal farming and combat.
                 condition = lambda: (
                     self.agent.blstats.experience_level >= 8 or
                     (self.agent.character.role == Character.ARCHEOLOGIST and
