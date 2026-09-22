@@ -1,4 +1,3 @@
-import difflib
 import re
 
 import cv2
@@ -268,13 +267,8 @@ class ExplorationLogic:
             # TODO: polymorphed into a handless creature, too heavy load to kick, using lockpicks
 
             yielded = False
-            # hypothesis: respecting the explicit shop-closure engraving avoids
-            # kicking down the locked door and provoking a lethal shopkeeper.
-            engraving = ''.join(c for c in self.agent.inventory.engraving_below_me.lower() if c.isalpha())
-            closed_shop = difflib.SequenceMatcher(None, engraving, 'closedforinventory').ratio() >= 0.55
             for py, px in self.agent.neighbors(self.agent.blstats.y, self.agent.blstats.x, diagonal=False):
-                if (self.agent.current_level().door_open_count[py, px] < door_open_count or
-                        (kick_doors and not closed_shop)) and \
+                if (self.agent.current_level().door_open_count[py, px] < door_open_count or kick_doors) and \
                         self.agent.glyphs[py, px] in G.DOOR_CLOSED:
                     if not yielded:
                         yielded = True
@@ -286,11 +280,11 @@ class ExplorationLogic:
                                     if self.agent.open_door(py, px):
                                         break
                                 else:
-                                    if kick_doors and not closed_shop:
+                                    if kick_doors:
                                         while self.agent.glyphs[py, px] in G.DOOR_CLOSED:
                                             self.agent.kick(py, px)
                             else:
-                                if kick_doors and not closed_shop:
+                                if kick_doors:
                                     while self.agent.glyphs[py, px] in G.DOOR_CLOSED:
                                         self.agent.kick(py, px)
                     break
