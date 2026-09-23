@@ -563,9 +563,7 @@ class GlobalLogic:
 
             def exploration_strategy(level, **kwargs):
                 return (
-                    # hypothesis: more systematic searching exposes lethal
-                    # falling-rock and projectile traps before traversal.
-                    Strategy(lambda: self.agent.exploration.explore1(level, trap_search_offset=3,
+                    Strategy(lambda: self.agent.exploration.explore1(level, trap_search_offset=1,
                         kick_doors=self.agent.current_level().dungeon_number != Level.GNOMISH_MINES, **kwargs).strategy())
                     .preempt(self.agent, [
                         self.identify_items_on_altar().every(100),

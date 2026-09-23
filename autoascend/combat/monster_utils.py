@@ -15,9 +15,7 @@ def is_monster_faster(agent, monster):
 
 
 def imminent_death_on_melee(agent, monster):
-    # hypothesis: reserving a larger HP buffer makes the agent disengage from
-    # ordinary early-game monsters soon enough to survive the next hit while
-    # it retreats or uses an emergency resource.
+    # Keep a buffer for retreating or using an emergency resource.
     if is_dangerous_monster(monster):
         return agent.blstats.hitpoints <= 20
     return agent.blstats.hitpoints <= 12
@@ -33,7 +31,12 @@ def is_dangerous_monster(monster):
     # 'mumak' in mon.mname or 'orc' in mon.mname or 'rothe' in mon.mname \
     # or 'were' in mon.mname or 'unicorn' in mon.mname or 'elf' in mon.mname or 'leocrotta' in mon.mname \
     # or 'mimic' in mon.mname
-    return is_pet or mon.mname in INSECTS or getattr(mon, 'difficulty', 0) >= 6
+    # hypothesis: explicitly recognizing high-damage early monsters makes the
+    # existing retreat buffer engage even when their difficulty is understated.
+    high_damage = ('rothe', 'mumak', 'winter wolf', 'unicorn', 'hill orc',
+                   'werewolf', 'werejackal', 'ettin mummy')
+    return is_pet or mon.mname in INSECTS or mon.mname in high_damage \
+           or getattr(mon, 'difficulty', 0) >= 6
 
 
 def consider_melee_only_ranged_if_hp_full(agent, monster):
