@@ -15,28 +15,19 @@ def is_monster_faster(agent, monster):
 
 
 def imminent_death_on_melee(agent, monster):
-    # Keep a buffer for retreating or using an emergency resource.
     if is_dangerous_monster(monster):
-        return agent.blstats.hitpoints <= 20
-    return agent.blstats.hitpoints <= 12
+        return agent.blstats.hitpoints <= 16
+    return agent.blstats.hitpoints <= 8
 
 
 def is_dangerous_monster(monster):
     _, y, x, mon, _ = monster
-    # hypothesis: using NetHack's difficulty rating to recognize threats makes
-    # the early-game combat policy disengage from high-damage monsters before
-    # they consume the remaining HP buffer, across both roles.
     is_pet = 'dog' in mon.mname or 'cat' in mon.mname or 'kitten' in mon.mname or 'pony' in mon.mname \
              or 'horse' in mon.mname
     # 'mumak' in mon.mname or 'orc' in mon.mname or 'rothe' in mon.mname \
     # or 'were' in mon.mname or 'unicorn' in mon.mname or 'elf' in mon.mname or 'leocrotta' in mon.mname \
     # or 'mimic' in mon.mname
-    # hypothesis: explicitly recognizing high-damage early monsters makes the
-    # existing retreat buffer engage even when their difficulty is understated.
-    high_damage = ('rothe', 'mumak', 'winter wolf', 'unicorn', 'hill orc',
-                   'werewolf', 'werejackal', 'ettin mummy')
-    return is_pet or mon.mname in INSECTS or mon.mname in high_damage \
-           or getattr(mon, 'difficulty', 0) >= 6
+    return is_pet or mon.mname in INSECTS
 
 
 def consider_melee_only_ranged_if_hp_full(agent, monster):
