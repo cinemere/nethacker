@@ -1,9 +1,11 @@
 # heuristic monster types lists
-ONLY_RANGED_SLOW_MONSTERS = ['floating eye', 'blue jelly', 'brown mold', 'gas spore', 'acid blob']
+# hypothesis: treating chickatrices as ranged-only prevents lethal
+# petrification from an otherwise ordinary melee attack.
+ONLY_RANGED_SLOW_MONSTERS = ['floating eye', 'blue jelly', 'brown mold', 'gas spore', 'acid blob', 'chickatrice']
 EXPLODING_MONSTERS = ['yellow light', 'gas spore', 'flaming sphere', 'freezing sphere', 'shocking sphere']
 INSECTS = ['giant ant', 'killer bee', 'soldier ant', 'fire ant', 'giant beetle', 'queen bee']
 WEAK_MONSTERS = ['lichen', 'newt', 'shrieker', 'grid bug']
-WEIRD_MONSTERS = ['leprechaun', 'nymph']
+WEIRD_MONSTERS = ['leprechaun', 'nymph', 'chickatrice']
 
 
 def is_monster_faster(agent, monster):
