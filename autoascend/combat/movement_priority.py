@@ -40,15 +40,11 @@ def _draw_ranged(priority, y, x, value, walkable, radius=1, operation='add'):
 
 def draw_monster_priority_positive(agent, monster, priority, walkable):
     _, y, x, mon, _ = monster
-    # hypothesis: a grid bug is harmless fodder while healthy, but at 1-4 HP it
-    # should use the existing retreat map instead of drawing fragile heroes closer.
-    weak_monster = mon.mname in WEAK_MONSTERS and not \
-        (mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4)
 
     # don't move into the monster
     priority[y, x] = float('nan')
 
-    if weak_monster:
+    if mon.mname in WEAK_MONSTERS:
         # weak monster - freely engage in melee
         _draw_around(priority, y, x, 2, radius=1, operation='max')
         _draw_around(priority, y, x, 1, radius=2, operation='max')
@@ -85,10 +81,8 @@ def draw_monster_priority_positive(agent, monster, priority, walkable):
 
 def draw_monster_priority_negative(agent, monster, priority, walkable):
     _, y, x, mon, _ = monster
-    weak_monster = mon.mname in WEAK_MONSTERS and not \
-        (mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4)
 
-    if imminent_death_on_melee(agent, monster) and not weak_monster \
+    if imminent_death_on_melee(agent, monster) and not mon.mname in WEAK_MONSTERS \
             and not mon.mname in ONLY_RANGED_SLOW_MONSTERS:
         if mon.mmove <= 12:
             _draw_around(priority, y, x, -10, radius=1)
@@ -133,7 +127,7 @@ def draw_monster_priority_negative(agent, monster, priority, walkable):
     elif 'unicorn' in mon.mname:
         pass
     else:
-        if not weak_monster:
+        if mon.mname not in WEAK_MONSTERS:
             # engage, but ensure striking first if possible
             _draw_around(priority, y, x, -9, radius=1)
             if not len(agent.inventory.get_ranged_combinations()):
