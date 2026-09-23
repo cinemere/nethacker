@@ -206,11 +206,9 @@ class ExplorationLogic:
                 continue
             c = level.search_count[max(y - 1, 0) : y + 2, max(x - 1, 0) : x + 2].sum()
 
-            if (self.agent.last_observation['specials'][y, x] & nh.MG_OBJPILE) == 0:
-                search_count = max(search_count, offset - c)
-                continue
-
-            c = level.search_count[max(y - 1, 0) : y + 2, max(x - 1, 0) : x + 2].sum()
+            # hypothesis: search every unexplored neighboring square before
+            # walking onto it, so lethal traps (including falling rocks) are
+            # discovered even when no item pile advertises the square.
             search_count = max(search_count, offset + 4 - c)
 
         if search_count == 0:
@@ -475,7 +473,10 @@ class ExplorationLogic:
             yield False
             return
 
-        untrappable_traps = [SS.S_web, SS.S_bear_trap, SS.S_land_mine, SS.S_dart_trap, SS.S_arrow_trap]
+        # hypothesis: disarming revealed falling-rock traps prevents the
+        # otherwise immediate early deaths they cause during exploration.
+        untrappable_traps = [SS.S_web, SS.S_bear_trap, SS.S_land_mine, SS.S_dart_trap,
+                             SS.S_arrow_trap, SS.S_falling_rock_trap]
         # TODO: consider strategy for SS.S_pit, SS.S_spiked_pit
         level = self.agent.current_level()
         trap_mask = utils.isin(level.objects, untrappable_traps)
