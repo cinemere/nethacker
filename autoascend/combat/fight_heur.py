@@ -15,9 +15,7 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    # hypothesis: reducing melee's priority through 9 HP leaves low-health
-    # characters a chance to retreat or use ranged attacks before a bad roll.
-    if agent.blstats.hitpoints > 9 or is_monster_faster(agent, monster):
+    if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
         ret -= 6
@@ -248,15 +246,12 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            # hypothesis: refusing all bare contact with cockatrices prevents
-            # instant petrification, while leaving ranged attacks and retreat
-            # available to both armed and unarmed characters.
+            # hypothesis: kicking petrifying monsters when bare-handed prevents
+            # strong unarmed characters from dying on contact with them.
             bare_handed = agent.inventory.items.main_hand is None
             bare_hands = agent.inventory.items.gloves is None
-            bare_feet = agent.inventory.items.boots is None
             if ord(mon.mlet) == MON.S_COCKATRICE and bare_handed and bare_hands:
-                if not bare_feet:
-                    actions.append((priority, ('kick', dy, dx)))
+                actions.append((priority, ('kick', dy, dx)))
             else:
                 actions.append((priority, ('melee', dy, dx)))
 
