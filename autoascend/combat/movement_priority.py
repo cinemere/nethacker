@@ -84,18 +84,14 @@ def draw_monster_priority_negative(agent, monster, priority, walkable):
 
     if imminent_death_on_melee(agent, monster) and not mon.mname in WEAK_MONSTERS \
             and not mon.mname in ONLY_RANGED_SLOW_MONSTERS:
-        # hypothesis: when critically hurt and unable to attack from range,
-        # strongly preferring escape tiles prevents the final melee trade
-        # against ordinary monsters for both identities.
-        retreat_penalty = -20 if not len(agent.inventory.get_ranged_combinations()) else -10
         if mon.mmove <= 12:
-            _draw_around(priority, y, x, retreat_penalty, radius=1)
+            _draw_around(priority, y, x, -10, radius=1)
         else:
             if adjacent((agent.blstats.y, agent.blstats.x), (y, x)):
                 # no point in running -- monster is fast
                 pass
             else:
-                _draw_around(priority, y, x, retreat_penalty, radius=2)
+                _draw_around(priority, y, x, -10, radius=2)
                 _draw_around(priority, y, x, -5, radius=1)
 
         if not len(agent.inventory.get_ranged_combinations()):
