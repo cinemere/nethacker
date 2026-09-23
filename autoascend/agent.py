@@ -58,7 +58,6 @@ class Agent:
         self.last_bfs_dis = None
         self.last_bfs_step = None
         self.last_prayer_turn = None
-        self._monk_meat_meals = 0
         self._previous_glyphs = None
         self._last_turn = -1
         self._inactivity_counter = 0
@@ -1137,7 +1136,7 @@ class Agent:
                 actions = list(filter(lambda x: x[1][0] != 'ranged', actions))
 
             if allow_attack_all:
-                attack_actions = [a for a in actions if a[1][0] in ('melee', 'kick', 'ranged', 'zap')]
+                attack_actions = [a for a in actions if a[1][0] in ('melee', 'ranged', 'zap')]
                 if attack_actions:
                     actions = attack_actions
 
@@ -1171,12 +1170,6 @@ class Agent:
                 self.melee_attack(target_y, target_x)
                 wait_counter = 0
                 return wait_counter
-
-        elif best_action[0] == 'kick':
-            _, dy, dx = best_action
-            self.kick(self.blstats.y + dy, self.blstats.x + dx)
-            wait_counter = 0
-            return wait_counter
 
         elif best_action[0] == 'ranged':
             _, dy, dx = best_action
@@ -1424,8 +1417,11 @@ class Agent:
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
         if (
-                (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
-                 or self.blstats.hitpoints < 8) and items
+                # hypothesis: quaffing healing at half health preserves enough
+                # HP to survive the next ordinary hit, improving both roles'
+                # early-game survival before prayer or retreat can happen.
+                (self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints
+                 or self.blstats.hitpoints < 12) and items
         ):
             yield True
             self.inventory.quaff(items[0])
@@ -1439,13 +1435,12 @@ class Agent:
             return
 
         if (
+                # hypothesis: praying at 10 HP instead of waiting for 6 HP
+                # gives both identities a chance to recover before a lethal
+                # monster hit, without spending inventory resources.
                 (self.is_safe_to_pray(500) and
-                 # hypothesis: delaying low-HP prayer after a Monk breaks vegetarian
-                 # conduct avoids divine wrath while alignment has not yet recovered.
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
-                  * self.blstats.max_hitpoints or
-                  self.blstats.hitpoints < (12 if self.character.role != Character.MONK or
-                                            self._monk_meat_meals == 0 else 8)))
+                  * self.blstats.max_hitpoints or self.blstats.hitpoints < 10))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True
