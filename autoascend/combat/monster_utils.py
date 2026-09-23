@@ -15,10 +15,10 @@ def is_monster_faster(agent, monster):
 
 
 def imminent_death_on_melee(agent, monster):
-    # hypothesis: recognizing high-damage early monsters and retreating before
-    # the final hit preserves both identities through the XP 8-10 bottleneck.
     if is_dangerous_monster(monster):
         return agent.blstats.hitpoints <= 16
+    # hypothesis: retreating from ordinary monsters below 10 HP avoids the
+    # common two-hit deaths while retaining normal aggression at full health.
     return agent.blstats.hitpoints <= 10
 
 
@@ -29,10 +29,7 @@ def is_dangerous_monster(monster):
     # 'mumak' in mon.mname or 'orc' in mon.mname or 'rothe' in mon.mname \
     # or 'were' in mon.mname or 'unicorn' in mon.mname or 'elf' in mon.mname or 'leocrotta' in mon.mname \
     # or 'mimic' in mon.mname
-    high_damage = ('rothe', 'mumak', 'winter wolf', 'unicorn', 'hill orc',
-                   'werewolf', 'werejackal', 'ettin mummy')
-    return is_pet or mon.mname in INSECTS or mon.mname in high_damage \
-           or getattr(mon, 'difficulty', 0) >= 6
+    return is_pet or mon.mname in INSECTS
 
 
 def consider_melee_only_ranged_if_hp_full(agent, monster):

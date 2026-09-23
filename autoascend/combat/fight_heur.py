@@ -246,8 +246,9 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            # hypothesis: defensive survival policy avoids bare cockatrice
-            # contact while retaining ranged attacks or a protected kick.
+            # hypothesis: refusing all bare contact with cockatrices prevents
+            # instant petrification, while leaving ranged attacks and retreat
+            # available to both armed and unarmed characters.
             bare_handed = agent.inventory.items.main_hand is None
             bare_hands = agent.inventory.items.gloves is None
             bare_feet = agent.inventory.items.boots is None
