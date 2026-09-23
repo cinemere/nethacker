@@ -246,12 +246,15 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            # hypothesis: kicking petrifying monsters when bare-handed prevents
-            # strong unarmed characters from dying on contact with them.
+            # hypothesis: refusing all bare contact with cockatrices prevents
+            # instant petrification, while leaving ranged attacks and retreat
+            # available to both armed and unarmed characters.
             bare_handed = agent.inventory.items.main_hand is None
             bare_hands = agent.inventory.items.gloves is None
+            bare_feet = agent.inventory.items.boots is None
             if ord(mon.mlet) == MON.S_COCKATRICE and bare_handed and bare_hands:
-                actions.append((priority, ('kick', dy, dx)))
+                if not bare_feet:
+                    actions.append((priority, ('kick', dy, dx)))
             else:
                 actions.append((priority, ('melee', dy, dx)))
 
