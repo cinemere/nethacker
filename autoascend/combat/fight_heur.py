@@ -222,11 +222,8 @@ def elbereth_action(agent, monsters):
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: when already badly hurt, engraving must outrank one
-        # more melee exchange so both roles can survive long enough to heal or
-        # disengage instead of dying to the next contact hit.
-        if agent.blstats.hitpoints <= 8 or player_hp_ratio ** 2 <= 1 / 3:
-            return [(100, ('elbereth',))]
+        # hypothesis: calibrating Elbereth below melee priority avoids wasting
+        # turns engraving while still making it available as HP falls.
         return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
