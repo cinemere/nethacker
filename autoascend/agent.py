@@ -1439,9 +1439,10 @@ class Agent:
             return
 
         if (
+                # hypothesis: praying at 10 HP instead of waiting for 6 HP
+                # gives both identities a chance to recover before a lethal
+                # monster hit, without spending inventory resources.
                 (self.is_safe_to_pray(500) and
-                 # hypothesis: delaying low-HP prayer after a Monk breaks vegetarian
-                 # conduct avoids divine wrath while alignment has not yet recovered.
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
                   * self.blstats.max_hitpoints or
                   self.blstats.hitpoints < (12 if self.character.role != Character.MONK or

@@ -268,8 +268,8 @@ class ExplorationLogic:
             # TODO: polymorphed into a handless creature, too heavy load to kick, using lockpicks
 
             yielded = False
-            # hypothesis: respecting the explicit shop-closure engraving avoids
-            # kicking down the locked door and provoking a lethal shopkeeper.
+            # hypothesis: defensive survival policy respects a shop's closure
+            # warning instead of kicking the door and provoking its shopkeeper.
             engraving = ''.join(c for c in self.agent.inventory.engraving_below_me.lower() if c.isalpha())
             closed_shop = difflib.SequenceMatcher(None, engraving, 'closedforinventory').ratio() >= 0.55
             for py, px in self.agent.neighbors(self.agent.blstats.y, self.agent.blstats.x, diagonal=False):
