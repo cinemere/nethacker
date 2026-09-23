@@ -241,10 +241,6 @@ def get_available_actions(agent, monsters):
     for monster in monsters:
         _, y, x, mon, _ = monster
         if adjacent((y, x), (agent.blstats.y, agent.blstats.x)):
-            # A chickatrice is never safe to hit in melee: even a successful
-            # attack can petrify the player.  Leave it to ranged/movement logic.
-            if mon.mname == 'chickatrice':
-                continue
             priority = melee_monster_priority(agent, monsters, monster)
             if agent.inventory.engraving_below_me.lower() == 'elbereth':
                 priority -= 100
