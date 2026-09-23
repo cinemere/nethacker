@@ -25,12 +25,15 @@ def imminent_death_on_melee(agent, monster):
 
 def is_dangerous_monster(monster):
     _, y, x, mon, _ = monster
+    # hypothesis: using NetHack's difficulty rating to recognize threats makes
+    # the early-game combat policy disengage from high-damage monsters before
+    # they consume the remaining HP buffer, across both roles.
     is_pet = 'dog' in mon.mname or 'cat' in mon.mname or 'kitten' in mon.mname or 'pony' in mon.mname \
              or 'horse' in mon.mname
     # 'mumak' in mon.mname or 'orc' in mon.mname or 'rothe' in mon.mname \
     # or 'were' in mon.mname or 'unicorn' in mon.mname or 'elf' in mon.mname or 'leocrotta' in mon.mname \
     # or 'mimic' in mon.mname
-    return is_pet or mon.mname in INSECTS
+    return is_pet or mon.mname in INSECTS or getattr(mon, 'difficulty', 0) >= 6
 
 
 def consider_melee_only_ranged_if_hp_full(agent, monster):
