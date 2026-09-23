@@ -632,12 +632,6 @@ class GlobalLogic:
             .preempt(self.agent, [
                 self.follow_guard(),
             ])
-            # hypothesis: resolving emergency healing before fight2 lets a
-            # fragile character spend an available recovery turn before the
-            # next monster attack, improving survival for both identities.
-            .preempt(self.agent, [
-                self.agent.emergency_strategy(),
-            ])
             .preempt(self.agent, [
                 self.agent.fight2(),
             ])
