@@ -15,21 +15,22 @@ def is_monster_faster(agent, monster):
 
 
 def imminent_death_on_melee(agent, monster):
-    if is_dangerous_monster(monster):
+    if is_dangerous_monster(agent, monster):
         return agent.blstats.hitpoints <= 16
     # hypothesis: retreating from ordinary monsters below 10 HP avoids the
     # common two-hit deaths while retaining normal aggression at full health.
     return agent.blstats.hitpoints <= 10
 
 
-def is_dangerous_monster(monster):
+def is_dangerous_monster(agent, monster):
     _, y, x, mon, _ = monster
     is_pet = 'dog' in mon.mname or 'cat' in mon.mname or 'kitten' in mon.mname or 'pony' in mon.mname \
              or 'horse' in mon.mname
-    # 'mumak' in mon.mname or 'orc' in mon.mname or 'rothe' in mon.mname \
-    # or 'were' in mon.mname or 'unicorn' in mon.mname or 'elf' in mon.mname or 'leocrotta' in mon.mname \
-    # or 'mimic' in mon.mname
-    return is_pet or mon.mname in INSECTS
+    # hypothesis: recognizing lycanthropes as dangerous makes the fragile
+    # Archaeologist retreat before infection and repeated summons overwhelm her.
+    from ..character import Character
+    return is_pet or mon.mname in INSECTS or (
+        agent.character.role == Character.ARCHEOLOGIST and 'were' in mon.mname)
 
 
 def consider_melee_only_ranged_if_hp_full(agent, monster):
