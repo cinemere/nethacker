@@ -224,9 +224,11 @@ def elbereth_action(agent, monsters):
         if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
 
-    player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
-    if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
+    player_hp_ratio = agent.blstats.hitpoints / agent.blstats.max_hitpoints
+    # hypothesis: engraving Elbereth before the next adjacent hit gives both
+    # fragile roles time to recover instead of continuing a losing melee.
+    if agent.blstats.hitpoints <= 16 and player_hp_ratio < 0.7 and adj_monsters_count >= 1:
+        return [(30 + 5 * adj_monsters_count, ('elbereth',))]
     return []
 
 
