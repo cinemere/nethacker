@@ -1423,11 +1423,9 @@ class Agent:
 
         items = [item for item in flatten_items(self.inventory.items) if item.is_unambiguous() and
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
-        # hypothesis: drinking healing potions before the next heavy blow keeps
-        # both fragile early characters alive through otherwise fatal fights.
         if (
-                (self.blstats.hitpoints < 1 / 2 * self.blstats.max_hitpoints
-                 or self.blstats.hitpoints < 12) and items
+                (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
+                 or self.blstats.hitpoints < 8) and items
         ):
             yield True
             self.inventory.quaff(items[0])
