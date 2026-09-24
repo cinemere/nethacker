@@ -10,7 +10,7 @@ from nle.nethack import actions as A
 from autoascend import objects as O, utils
 from autoascend.character import Character
 from autoascend.exceptions import AgentPanic
-from autoascend.glyph import G, MON
+from autoascend.glyph import G
 from autoascend.item import ItemManager, Item, ContainerContent, check_if_triggered_container_trap, \
     find_equivalent_item, flatten_items
 from autoascend.item.inventory_items import InventoryItems
@@ -660,10 +660,6 @@ class Inventory:
         return self.eat(item, quaff=True, smart=smart)
 
     def eat(self, item, quaff=False, smart=True):
-        if not quaff and item.is_corpse() and self.agent.character.role == Character.MONK and \
-                ord(MON.permonst(item.monster_id).mlet) not in \
-                [MON.S_BLOB, MON.S_JELLY, MON.S_FUNGUS]:
-            self.agent._monk_meat_meals += 1
         if smart:
             if not quaff and item in self.items_below_me:
                 with self.agent.atom_operation():
