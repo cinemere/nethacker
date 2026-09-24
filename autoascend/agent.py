@@ -1444,9 +1444,9 @@ class Agent:
                  # conduct avoids divine wrath while alignment has not yet recovered.
                  (self.blstats.hitpoints < 1 / (5 if self.blstats.experience_level < 6 else 6)
                   * self.blstats.max_hitpoints or
-                  # hypothesis: Archaeologists benefit from saving prayer until
-                  # 10 HP, while the Monk retains its established 12 HP timing.
-                  self.blstats.hitpoints < (10 if self.character.role == Character.ARCHEOLOGIST else 12)))
+                  # hypothesis: saving the Archaeologist's prayer until health
+                  # is critical makes it available for the most dangerous fight.
+                  self.blstats.hitpoints < (8 if self.character.role == Character.ARCHEOLOGIST else 12)))
                 or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
         ):
             yield True
