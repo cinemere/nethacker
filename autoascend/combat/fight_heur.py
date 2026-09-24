@@ -4,7 +4,7 @@ from itertools import product
 import numpy as np
 from scipy import signal
 
-from ..glyph import G
+from ..glyph import G, MON
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -149,8 +149,8 @@ def _simulate_wand_path(agent, wand, monsters, y, x, dy, dx, range_left, hit_tar
 
         hit_targets[(y, x, monster)] += probability * next_prob
 
-        # hypothesis: preserving each bounce's probability prevents the bot
-        # from overvaluing unlikely wand hits and exposing itself in combat.
+        # hypothesis: track bounce probabilities and reject likely self-hits so
+        # offensive wands help combat without killing the player with a rebound.
         _simulate_wand_path(agent, wand, monsters, y, x, dy, dx, range_left - 1,
                             hit_targets, probability * next_prob)
 
@@ -173,6 +173,7 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
     # TODO: also get items recursively from bags
     for item in agent.inventory.items:
         targeted_monsters = set()
+        self_hit_probability = 0
         if not item.is_offensive_usable_wand():
             continue
         priority = 0
@@ -182,18 +183,18 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
             if monster == 'pet':
                 priority -= p * 20
             elif monster == 'self':
+                self_hit_probability += p
                 priority -= p * 30
             elif monster is not None:
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(monster):
+                elif is_dangerous_monster(agent, monster):
                     priority += p * 25
                 else:
                     priority += min(p, 1) * 10
                 targeted_monsters.add((y, x, monster))
-        if targeted_monsters:
-            # priority = priority * (1 - player_hp_ratio) - 10
+        if targeted_monsters and self_hit_probability < 0.25:
             priority = priority - 15
             if agent.inventory.engraving_below_me.lower() == 'elbereth':
                 priority -= 100
@@ -216,13 +217,11 @@ def elbereth_action(agent, monsters):
         multiplier = np.clip(20 / agent.blstats.hitpoints, 1.0, 1.5)
         if is_monster_faster(agent, monster):
             multiplier *= 2
-        # hypothesis: recognizing weak monsters by name avoids wasting turns
-        # engraving Elbereth against harmless foes during health recovery.
-        if mon.mname in WEAK_MONSTERS:
+        if mon in WEAK_MONSTERS:
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(monster):
+        if is_dangerous_monster(agent, monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
@@ -251,7 +250,17 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            actions.append((priority, ('melee', dy, dx)))
+            # hypothesis: refusing all bare contact with cockatrices prevents
+            # instant petrification, while leaving ranged attacks and retreat
+            # available to both armed and unarmed characters.
+            bare_handed = agent.inventory.items.main_hand is None
+            bare_hands = agent.inventory.items.gloves is None
+            bare_feet = agent.inventory.items.boots is None
+            if ord(mon.mlet) == MON.S_COCKATRICE and bare_handed and bare_hands:
+                if not bare_feet:
+                    actions.append((priority, ('kick', dy, dx)))
+            else:
+                actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):
@@ -341,7 +350,7 @@ def get_priorities(agent):
     priority -= priority[agent.blstats.y, agent.blstats.x]
 
     actions = get_available_actions(agent, monsters)
-    if not any(a[1][0] in ('melee', 'ranged') for a in actions):
+    if not any(a[1][0] in ('melee', 'kick', 'ranged') for a in actions):
         actions.extend(goto_action(agent, priority, monsters))
     return priority, actions
 
