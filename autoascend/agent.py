@@ -1418,7 +1418,16 @@ class Agent:
                  item.category == nh.POTION_CLASS and item.object.name in ['healing', 'extra healing', 'full healing']]
         if (
                 (self.blstats.hitpoints < 1 / 3 * self.blstats.max_hitpoints
-                 or self.blstats.hitpoints < 8) and items
+                 or self.blstats.hitpoints < 8
+                 # hypothesis: Monks can use their known starting healing
+                 # potions before a nearby attacker delivers a lethal hit.
+                 or (self.character.role == Character.MONK
+                     and self.blstats.hitpoints < 0.6 * self.blstats.max_hitpoints
+                     and self.blstats.hitpoints < 25
+                     and any(utils.adjacent((monster[1], monster[2]),
+                                            (self.blstats.y, self.blstats.x)) and
+                             monster[3].mname not in combat.monster_utils.WEAK_MONSTERS
+                             for monster in self.get_visible_monsters()))) and items
         ):
             yield True
             self.inventory.quaff(items[0])
