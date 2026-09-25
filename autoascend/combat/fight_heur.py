@@ -206,6 +206,14 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
         if targeted_monsters:
             # priority = priority * (1 - player_hp_ratio) - 10
             priority = priority - 15
+            # hypothesis: an offensive wand should outrank a melee swing when
+            # a dangerous adjacent monster threatens a wounded character.
+            if (priority >= 5 and
+                    (player_hp_ratio < 0.6 or agent.blstats.hitpoints < 16) and
+                    any(adjacent((agent.blstats.y, agent.blstats.x), (my, mx)) and
+                        is_dangerous_monster(monster)
+                        for my, mx, monster in targeted_monsters)):
+                priority += 15
             if agent.inventory.engraving_below_me.lower() == 'elbereth':
                 priority -= 100
             ret.append((priority, ('zap', dy, dx, item, targeted_monsters)))
