@@ -82,6 +82,9 @@ def draw_monster_priority_positive(agent, monster, priority, walkable):
 def draw_monster_priority_negative(agent, monster, priority, walkable):
     _, y, x, mon, _ = monster
 
+    if mon.mname in ('cockatrice', 'chickatrice') and agent.inventory.items.main_hand is None:
+        _draw_around(priority, y, x, -20, radius=1)
+
     if imminent_death_on_melee(agent, monster) and not mon.mname in WEAK_MONSTERS \
             and not mon.mname in ONLY_RANGED_SLOW_MONSTERS:
         if mon.mmove <= 12:

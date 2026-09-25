@@ -407,7 +407,12 @@ class GlobalLogic:
         if not item.is_corpse() or item.comment == 'old':
             return False
 
-        mname = MON.permonst(item.monster_id + nh.GLYPH_MON_OFF).mname
+        monster = MON.permonst(item.monster_id + nh.GLYPH_MON_OFF)
+        mname = monster.mname
+        # hypothesis: avoiding petrifying corpses and monsters prevents
+        # instant deaths that end otherwise healthy runs in both roles.
+        if ord(monster.mlet) == MON.S_COCKATRICE or mname == 'Medusa':
+            return False
         if (mname == 'pony' and self.agent.character.role in [Character.KNIGHT, Character.BARBARIAN]) or \
                 (mname == 'kitten' and self.agent.character.role == [Character.BARBARIAN, Character.WIZARD]) or \
                 (mname == 'little dog' and item.naming):  # little dogs are always named

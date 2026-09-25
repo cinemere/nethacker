@@ -15,6 +15,8 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
+    if mon.mname in ('cockatrice', 'chickatrice') and agent.inventory.items.main_hand is None:
+        return -100
     # hypothesis: retreating sooner from high-damage monsters improves survival
     # while keeping ordinary fights short enough to conserve food and health.
     if (agent.blstats.hitpoints > 8 and
