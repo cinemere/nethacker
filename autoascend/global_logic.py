@@ -58,7 +58,10 @@ class ItemPriority(ItemPriorityBase):
                 bag = item  # TODO: select the best
                 add_item(bag)
 
-        if self._drop_gold_till_turn < self.agent.blstats.time:
+        # hypothesis: Monks' long early training benefits from reserving their
+        # limited carrying capacity for food and gear instead of loose gold.
+        if (self.agent.character.role != Character.MONK and
+                self._drop_gold_till_turn < self.agent.blstats.time):
             for item in items:
                 if item.category == nh.COIN_CLASS:
                     add_item(item)
