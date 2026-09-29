@@ -24,6 +24,9 @@ class Level:
         self.seen = np.zeros((C.SIZE_Y, C.SIZE_X), bool)
         self.objects = np.zeros((C.SIZE_Y, C.SIZE_X), np.int16)
         self.objects[:] = -1
+        # Observational memory only; consumed exclusively by the island probes.
+        self.dig_liquid = np.zeros((C.SIZE_Y, C.SIZE_X), bool)
+
         self.was_on = np.zeros((C.SIZE_Y, C.SIZE_X), bool)
 
         self.shop = np.zeros((C.SIZE_Y, C.SIZE_X), bool)

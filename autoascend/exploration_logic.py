@@ -209,11 +209,21 @@ class ExplorationLogic:
                 assert self.agent.current_level().key() in levels_to_search
                 continue
 
+            step_before = self.agent.step_count
             explore_strategy.preempt(self.agent, [
                 self.explore_stairs(go_to_strategy, all=True) \
                         .condition(lambda: self.agent.current_level().key() in levels_to_search),
                 go_to_least_explored_level(),
             ], continue_after_preemption=False).run()
+            # hypothesis (medusa_nohang): a fully explored island can offer no
+            # reachable work. Re-entering explore1 without an action never calls
+            # update/preemption or the outer idle guard. One search yields to the
+            # normal digging/combat callbacks, and this failed travel attempt ends.
+            if self.agent.step_count == step_before and self.agent.current_level().dig_liquid.any() and hyp.fire(
+                    'medusa_nohang', self.agent, event='no_reachable_work',
+                    target_dungeon=int(dungeon_number), target_level=int(level_number)):
+                self.agent.search()
+                return False
 
         path = self.get_path_to_level(dungeon_number, level_number)
         assert path is not None, \

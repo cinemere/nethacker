@@ -15,7 +15,7 @@ from .character import Character
 from .exceptions import AgentPanic, AgentFinished, AgentChangeStrategy
 from .exploration_logic import ExplorationLogic
 from .global_logic import GlobalLogic, EARLY_DIG_XL
-from .glyph import MON, C, Hunger, G, SHOP
+from .glyph import MON, C, Hunger, G, SHOP, SS
 from .item import Item, flatten_items
 from .item.inventory import Inventory
 from .level import Level
@@ -632,6 +632,14 @@ class Agent:
         level.objects[mask] = self.glyphs[mask]
         level.walkable[mask] = False
 
+        # Keep liquid separately: changing objects/walkable would change exploration
+        # even with the probes off. Monsters can later obscure these observations.
+        liquid = utils.isin(self.glyphs, {SS.S_pool, SS.S_water, SS.S_lava})
+        level.dig_liquid[liquid] = True
+        solid = utils.isin(self.glyphs, G.FLOOR, G.WALL, G.DOORS, G.STAIR_UP,
+                           G.STAIR_DOWN, G.TRAPS, G.ALTAR, G.FOUNTAIN, {SS.S_ice})
+        level.dig_liquid[solid] = False
+
         self._update_level_items()
         self._update_level_shops()
         self._update_level_corpses()
@@ -963,14 +971,15 @@ class Agent:
 
         return ret
 
-    def bfs(self, y=None, x=None, can_squeeze=None):
+    def bfs(self, y=None, x=None, can_squeeze=None, blocked=None):
         if y is None:
             y = self.blstats.y
         if x is None:
             x = self.blstats.x
         default_squeeze = can_squeeze is None
+        cacheable = default_squeeze and blocked is None
 
-        if default_squeeze and self.last_bfs_step == self.step_count and \
+        if cacheable and self.last_bfs_step == self.step_count and \
                 y == self.blstats.y and x == self.blstats.x:
             return self.last_bfs_dis.copy()
 
@@ -979,6 +988,8 @@ class Agent:
         walkable = level.walkable & ~utils.isin(self.glyphs, G.BOULDER) & \
                    ~self.monster_tracker.peaceful_monster_mask & \
                    ~level.forbidden
+        if blocked is not None:
+            walkable &= ~blocked
 
         if self._last_turn - self._allow_walking_through_traps_turn > 50:
             walkable &= ~utils.isin(level.objects, G.TRAPS)
@@ -995,7 +1006,7 @@ class Agent:
                                     self.current_level().dungeon_number != Level.SOKOBAN,
                         )
 
-        if default_squeeze and y == self.blstats.y and x == self.blstats.x:
+        if cacheable and y == self.blstats.y and x == self.blstats.x:
             self.last_bfs_dis = dis
             self.last_bfs_step = self.step_count
 
@@ -1755,6 +1766,30 @@ class Agent:
                     return item
         return None
 
+    def _dry_dig_target(self, shielded):
+        """Nearest reachable non-shop excavation, with a dry 3x3 neighborhood."""
+        level = self.current_level()
+        wet = np.pad(level.dig_liquid, 1)
+        near_liquid = np.zeros_like(level.dig_liquid)
+        for dy in range(3):
+            for dx in range(3):
+                near_liquid |= wet[dy:dy + near_liquid.shape[0], dx:dx + near_liquid.shape[1]]
+        eligible = utils.isin(level.objects, G.FLOOR, {SS.S_pit, SS.S_spiked_pit})
+        eligible &= ~utils.isin(level.objects, G.DOORS) & ~level.shop & ~near_liquid
+        # A monster over water can leave an old walkable entry behind. The dry
+        # plan must exclude liquid along the route as well as at its destination,
+        # without modifying the ordinary exploration map or its BFS cache.
+        dis = self.bfs(blocked=level.dig_liquid)
+        eligible &= level.walkable & (dis >= 0)
+        for y, x in zip(*eligible.nonzero()):
+            if self._pick_dig_attempts.get((level.key(), y, x), 0) >= (16 if shielded else 8):
+                eligible[y, x] = False
+        ys, xs = eligible.nonzero()
+        if not len(ys):
+            return None
+        i = int(np.argmin(dis[ys, xs]))
+        return int(ys[i]), int(xs[i])
+
     @utils.debug_log('dig_down')
     @Strategy.wrap
     def dig_down(self):
@@ -1777,7 +1812,7 @@ class Agent:
         if self.character.prop.polymorph:
             yield False
             return
-        # only the main dungeon: the Mines bottom out at Dlvl 10-13, the Dungeons of Doom at Medusa
+        # Only the main dungeon; Medusa permits holes, the Castle branch bottom does not.
         if self.current_level().dungeon_number != Level.DUNGEONS_OF_DOOM:
             yield False
             return
@@ -1826,6 +1861,43 @@ class Agent:
                 yield False
                 return
 
+        # hypothesis (dry_dig): island excavations flood from any liquid in the
+        # surrounding 3x3, including diagonals. Walk one step toward the nearest
+        # eligible dry square, then recheck threats and terrain before continuing.
+        # The separate liquid cache and all planning are inert on ordinary levels.
+        dry_pit = False
+        level = self.current_level()
+        if level.dig_liquid.any() and (wand is not None or self.pick_for_digging() is not None):
+            # Castle is the main branch bottom (D25-29) and has no downstairs.
+            # At those depths require positive evidence of a downward connection;
+            # an unidentified deep water level must not acquire new hole targets.
+            bottom_possible = self.blstats.depth >= 25 and not level.get_stairs(down=True)
+            target = None if bottom_possible else self._dry_dig_target(shielded)
+            pos = (self.blstats.y, self.blstats.x)
+            would_dig_here = wand is not None or (
+                level.objects[pos] in G.FLOOR and level.objects[pos] not in G.DOORS and
+                not level.shop[pos] and self._pick_dig_attempts.get((level.key(), *pos), 0) <
+                (16 if shielded else 8))
+            if target is None and would_dig_here and hyp.fire('dry_dig', self, event='decline',
+                                           reason='possible_bottom' if bottom_possible else 'no_dry_square'):
+                yield False
+                return
+            if target is not None and target != pos and hyp.fire(
+                    'dry_dig', self, event='relocate', y=int(pos[0]), x=int(pos[1]),
+                    target_y=int(target[0]), target_x=int(target[1]),
+                    adjacent_liquid=int(level.dig_liquid[max(0, pos[0]-1):pos[0]+2,
+                                                       max(0, pos[1]-1):pos[1]+2].sum())):
+                yield True
+                dis = self.bfs(blocked=level.dig_liquid)
+                path = self.path(*pos, *target, dis=dis)
+                self.move(*path[1])
+                return
+            # Finish an existing dry island pit without relocating away from the
+            # selected safe square after the terrain display refreshes its glyph.
+            if wand is None and target == pos and level.objects[pos] in {SS.S_pit, SS.S_spiked_pit} and hyp.fire(
+                    'dry_dig', self, event='continue_dry_pit', y=int(pos[0]), x=int(pos[1])):
+                dry_pit = True
+
         if wand is not None:
             yield True
             self.zap(wand, '>')
@@ -1841,7 +1913,7 @@ class Agent:
             yield False
             return
         y, x = self.blstats.y, self.blstats.x
-        if self.current_level().objects[y, x] not in G.FLOOR or \
+        if (self.current_level().objects[y, x] not in G.FLOOR and not dry_pit) or \
                 self.current_level().objects[y, x] in G.DOORS:
             yield False
             return

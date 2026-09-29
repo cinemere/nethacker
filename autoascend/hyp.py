@@ -33,7 +33,9 @@ MODES = {
     'pick_first': 'off',
     'drop_memory': 'off',
     'loop_guard': 'off',
-    'fast_descent': 'off',
+    'fast_descent': {'rog-orc': 'on'},
+    'medusa_nohang': {'rog': 'on'},
+    'dry_dig': 'off',
 }
 
 _CONFIG = os.environ.get('HYP_CONFIG', '/hyp/config.json')
