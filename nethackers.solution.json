@@ -1,8 +1,14 @@
 {
   "schema": "nethackers.solution/v1",
-  "name": "autoascend",
+  "name": "autoascend-dive-rogue-race",
   "root": "autoascend",
-  "parents": [],
-  "influences": [],
+  "parents": [
+    "github.com/DT6A/nethacker@d956abff7baa169d549a8d12fa1d219412833b67"
+  ],
+  "influences": [
+    "github.com/DT6A/nethacker@464e1662a4cb60567c7946d2d952278c64eefe84",
+    "github.com/DT6A/nethacker@d956abff7baa169d549a8d12fa1d219412833b67",
+    "github.com/Komershan/nethacker@132b7c2d662f40bf7f86335c98709025b8b23967"
+  ],
   "entrypoint": "bot.py"
 }

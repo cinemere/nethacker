@@ -1,3 +1,4 @@
+import difflib
 import re
 
 import cv2
@@ -5,6 +6,7 @@ import numpy as np
 from nle import nethack as nh
 from nle.nethack import actions as A
 
+from . import hyp
 from . import utils
 from .character import Character
 from .exceptions import AgentPanic
@@ -16,6 +18,37 @@ from .strategy import Strategy
 class ExplorationLogic:
     def __init__(self, agent):
         self.agent = agent
+        self._farm_spots = {}  # stand_farm: level key -> the corridor dead end we wait in
+
+    def _stand_farm_spot(self, dis):
+        # hypothesis (stand_farm): once Dlvl 1 is explored, the Rogue waits for spawns to reach XL 5
+        # by walking from wall to wall and searching 5 turns at each (40% of all game turns). Spawns
+        # come at the same rate standing still; standing in a corridor dead end means one attacker
+        # at a time from one side, no walking into traps or into a monster at a bad spot.
+        agent = self.agent
+        level = agent.current_level()
+        if agent.character.role != Character.ROGUE or \
+                getattr(agent.global_logic.milestone, 'name', '') != 'BE_ON_FIRST_LEVEL' or \
+                level.key() != (Level.DUNGEONS_OF_DOOM, 1):
+            return None
+        spot = self._farm_spots.get(level.key())
+        if spot is None or dis[spot] == -1:
+            corridor = utils.isin(level.objects, frozenset({SS.S_corr, SS.S_litcorr})) & level.walkable & (dis != -1)
+            tmp = np.zeros((C.SIZE_Y, C.SIZE_X), dtype=level.walkable.dtype)
+            nb = np.stack([utils.translate(level.walkable, y, x, out=tmp).astype(np.int32)
+                           for y, x in [(1, 0), (-1, 0), (0, 1), (0, -1)]]).sum(0)
+            cand = corridor & (nb <= 1)
+            if not cand.any():
+                cand = corridor & (nb <= 2)
+            if not cand.any():
+                return None
+            ys, xs = cand.nonzero()
+            i = int(np.argmin(dis[ys, xs]))
+            spot = (int(ys[i]), int(xs[i]))
+            self._farm_spots[level.key()] = spot
+        if not hyp.fire('stand_farm', agent, y=spot[0], x=spot[1]):
+            return None
+        return spot
 
     # TODO: think how to handle the situation with wizard's tower
     def _level_dfs(self, start, end, path, vis):
@@ -267,8 +300,13 @@ class ExplorationLogic:
             # TODO: polymorphed into a handless creature, too heavy load to kick, using lockpicks
 
             yielded = False
+            # hypothesis: respecting the explicit shop-closure engraving avoids
+            # kicking down the locked door and provoking a lethal shopkeeper.
+            engraving = ''.join(c for c in self.agent.inventory.engraving_below_me.lower() if c.isalpha())
+            closed_shop = difflib.SequenceMatcher(None, engraving, 'closedforinventory').ratio() >= 0.55
             for py, px in self.agent.neighbors(self.agent.blstats.y, self.agent.blstats.x, diagonal=False):
-                if (self.agent.current_level().door_open_count[py, px] < door_open_count or kick_doors) and \
+                if (self.agent.current_level().door_open_count[py, px] < door_open_count or
+                        (kick_doors and not closed_shop)) and \
                         self.agent.glyphs[py, px] in G.DOOR_CLOSED:
                     if not yielded:
                         yielded = True
@@ -280,11 +318,11 @@ class ExplorationLogic:
                                     if self.agent.open_door(py, px):
                                         break
                                 else:
-                                    if kick_doors:
+                                    if kick_doors and not closed_shop:
                                         while self.agent.glyphs[py, px] in G.DOOR_CLOSED:
                                             self.agent.kick(py, px)
                             else:
-                                if kick_doors:
+                                if kick_doors and not closed_shop:
                                     while self.agent.glyphs[py, px] in G.DOOR_CLOSED:
                                         self.agent.kick(py, px)
                     break
@@ -419,6 +457,14 @@ class ExplorationLogic:
                 if not yielded:
                     yielded = True
                     yield True
+
+                farm = self._stand_farm_spot(dis) if dynamic_search_fallback else None
+                if farm is not None:
+                    if (self.agent.blstats.y, self.agent.blstats.x) != farm:
+                        self.agent.go_to(*farm, fast=fast_go_to)
+                    else:
+                        self.agent.search(20)
+                    continue
 
                 # select random closest to_explore tile
                 i = self.agent.rng.randint(len(nonzero_y))

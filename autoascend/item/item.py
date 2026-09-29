@@ -218,8 +218,9 @@ class Item:
         if self.uses == 'no charges':
             # TODO: is it right ?
             return False
-        if self.objs[0] == O.from_name('sleep', nh.WAND_CLASS):
-            return False
+        # hypothesis: Healers start with a wand of sleep; using it to disable dangerous
+        # approaching monsters (then meleeing them while asleep) should improve early-game
+        # survival across all four Healer identities, which currently die to melee monsters at DLvl 1.
         if self.objs[0] == O.from_name('digging', nh.WAND_CLASS):
             return False
         return True

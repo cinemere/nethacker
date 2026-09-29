@@ -1191,15 +1191,6 @@ class Agent:
                 if alternative is not None and hyp.fire('threat_avoid', self, **alternative[1]):
                     best_action = alternative[0]
 
-            # hypothesis (elbereth_early): attacking from Elbereth erases our shelter
-            # in 3.6. Recover on it, then move off before resuming attacks.
-            if self.character.role == self.character.ROGUE and \
-                    self.inventory.engraving_below_me.lower() == 'elbereth' and \
-                    best_action[0] in ('melee', 'kick', 'ranged', 'zap') and \
-                    hyp.fire('elbereth_early', self, action='leave_shelter'):
-                safe_actions = combat.fight_heur.get_move_actions(self, dis, move_priority_heatmap)
-                best_action = max(safe_actions, key=lambda a: a[0])[1] if safe_actions else ('wait',)
-
             with self.env.debug_tiles(move_priority_heatmap, color='turbo', is_heatmap=True):
                 actions_str = '|'.join([combat.utils.action_str(self, a) for a in sorted(actions, key=lambda x: x[0])])
                 with self.env.debug_log(actions_str):
@@ -1492,31 +1483,6 @@ class Agent:
             yield True
             self.inventory.quaff(items[0])
             return
-
-        # hypothesis (elbereth_early): Rogue melee deaths often take less than five
-        # turns from half HP. At 80% HP there is room for another damage round or
-        # a misspelled dust engraving; wait to 90% without attacking the shelter.
-        if self.character.role == self.character.ROGUE and \
-                self.blstats.hitpoints < 0.80 * self.blstats.max_hitpoints and \
-                self.blstats.hunger_state < Hunger.WEAK and self.can_engrave():
-            monsters = self.get_visible_monsters()
-            adjacent = [m for m in monsters
-                        if utils.adjacent((self.blstats.y, self.blstats.x), (m[1], m[2]))]
-            if adjacent and all(self._respects_elbereth(m[3]) for m in monsters) and \
-                    hyp.fire('elbereth_early', self, action='recover',
-                             monsters=[m[3].mname for m in adjacent]):
-                yield True
-                for _ in range(200):
-                    if self.blstats.hitpoints >= 0.9 * self.blstats.max_hitpoints or \
-                            self.blstats.hunger_state >= Hunger.WEAK or \
-                            self._elbereth_rest_unsafe() or not self.can_engrave():
-                        break
-                    if self.inventory.engraving_below_me.lower() != 'elbereth':
-                        if not self.engrave('Elbereth'):
-                            break
-                    else:
-                        self.direction('.')
-                return
 
         # hypothesis: the weak Healers die mid-grind because the emergency prayer only fires at
         # HP < max/5 (or /6) or HP < 6 -- so low that a single hard hit (mumak, soldier ant, magic

@@ -2,9 +2,11 @@ from collections import defaultdict
 from itertools import product
 
 import numpy as np
+
+from .. import hyp
 from scipy import signal
 
-from ..glyph import G
+from ..glyph import G, MON
 from ..utils import adjacent
 from .monster_utils import is_monster_faster, is_dangerous_monster, \
     ONLY_RANGED_SLOW_MONSTERS, EXPLODING_MONSTERS, WEAK_MONSTERS, consider_melee_only_ranged_if_hp_full
@@ -15,8 +17,6 @@ from .utils import wielding_ranged_weapon, line_dis_from, inside
 def melee_monster_priority(agent, monsters, monster):
     _, y, x, mon, _ = monster
     ret = 1
-    if mon.mname == 'grid bug' and agent.blstats.hitpoints <= 4:
-        ret -= 20
     if agent.blstats.hitpoints > 8 or is_monster_faster(agent, monster):
         ret += 15
     if wielding_ranged_weapon(agent) and not is_monster_faster(agent, monster):
@@ -95,6 +95,16 @@ def ranged_priority(agent, dy, dx, monsters):
                 ret -= 6
                 if mon.mname == 'gas spore':  # only gas spore ?
                     ret -= 100
+            # hypothesis (rogue_volley): a Rogue throws several daggers per turn (multishot bonus,
+            # dagger skill to Expert) yet the bot only throws at range 3+: at range 1-2 a throw
+            # scores 0-6 against melee's 16, so every fight ends in melee with a d4-d5 dagger or
+            # short sword, and the Rogues die to rothes, ants and hill orcs at XL 5-7. With two or
+            # more daggers to throw, volley them at close range too (they are picked up after).
+            if ret < 17 and mon.mname != 'gas spore' and launcher is None and \
+                    agent.character.role == agent.character.ROGUE and \
+                    ammo.objs[0].name in ('dagger', 'elven dagger', 'orcish dagger', 'silver dagger') and \
+                    ammo.count >= 2 and hyp.fire('rogue_volley', agent, dis=int(dis), mon=mon.mname):
+                ret = 17
             return ret, y, x, monster[0]
 
 
@@ -186,7 +196,7 @@ def get_potential_wand_usages(agent, monsters, dy, dx):
                 _, y, x, mon, _ = monster
                 if mon.mname in WEAK_MONSTERS:
                     priority += min(p, 1) * 1
-                elif is_dangerous_monster(agent, monster):
+                elif is_dangerous_monster(monster):
                     priority += p * 25
                 else:
                     priority += min(p, 1) * 10
@@ -219,14 +229,12 @@ def elbereth_action(agent, monsters):
             adj_monsters_count += 0.1 * multiplier
             continue
         adj_monsters_count += 1 * multiplier
-        if is_dangerous_monster(agent, monster):
+        if is_dangerous_monster(monster):
             adj_monsters_count += 2 * multiplier
 
     player_hp_ratio = (agent.blstats.hitpoints / agent.blstats.max_hitpoints) ** 0.5
     if agent.blstats.hitpoints < 30 and adj_monsters_count > 0:
-        # hypothesis: letting Elbereth beat continued melee once an adjacent threat has removed roughly half
-        # the hero's HP will save fragile builds before their existing emergency logic reaches one-hit range.
-        return [(-5 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
+        return [(-15 + 20 * adj_monsters_count * (1 - player_hp_ratio), ('elbereth',))]
     return []
 
 
@@ -250,7 +258,17 @@ def get_available_actions(agent, monsters):
                 priority -= 100
             dy = y - agent.blstats.y
             dx = x - agent.blstats.x
-            actions.append((priority, ('melee', dy, dx)))
+            # hypothesis: refusing all bare contact with cockatrices prevents
+            # instant petrification, while leaving ranged attacks and retreat
+            # available to both armed and unarmed characters.
+            bare_handed = agent.inventory.items.main_hand is None
+            bare_hands = agent.inventory.items.gloves is None
+            bare_feet = agent.inventory.items.boots is None
+            if ord(mon.mlet) == MON.S_COCKATRICE and bare_handed and bare_hands:
+                if not bare_feet:
+                    actions.append((priority, ('kick', dy, dx)))
+            else:
+                actions.append((priority, ('melee', dy, dx)))
 
     # ranged attack actions
     for dy, dx in product([-1, 0, 1], [-1, 0, 1]):
@@ -340,7 +358,7 @@ def get_priorities(agent):
     priority -= priority[agent.blstats.y, agent.blstats.x]
 
     actions = get_available_actions(agent, monsters)
-    if not any(a[1][0] in ('melee', 'ranged') for a in actions):
+    if not any(a[1][0] in ('melee', 'kick', 'ranged') for a in actions):
         actions.extend(goto_action(agent, priority, monsters))
     return priority, actions
 

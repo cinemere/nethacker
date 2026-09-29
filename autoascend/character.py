@@ -64,21 +64,26 @@ class Property:
     def __init__(self, agent):
         self.agent = agent
 
+    # The tty status line abbreviates conditions when it gets long (e.g. 'Hallu' -> 'Hl'),
+    # so read them from the blstats condition bitmask instead.
+    def _condition(self, mask):
+        return bool(self.agent.last_observation['blstats'][nh.NLE_BL_CONDITION] & mask)
+
     @property
     def confusion(self):
-        return 'Conf' in bytes(self.agent.last_observation['tty_chars'][-1]).decode()
+        return self._condition(nh.BL_MASK_CONF)
 
     @property
     def stun(self):
-        return 'Stun' in bytes(self.agent.last_observation['tty_chars'][-1]).decode()
+        return self._condition(nh.BL_MASK_STUN)
 
     @property
     def hallu(self):
-        return 'Hallu' in bytes(self.agent.last_observation['tty_chars'][-1]).decode()
+        return self._condition(nh.BL_MASK_HALLU)
 
     @property
     def blind(self):
-        return 'Blind' in bytes(self.agent.last_observation['tty_chars'][-1]).decode()
+        return self._condition(nh.BL_MASK_BLIND)
 
     @property
     def polymorph(self):
@@ -274,6 +279,10 @@ class Character:
         self.upgradable_skills = dict()
 
         self.is_lycanthrope = False
+
+        # populated lazily by parse_spellcast_view once the Healer reaches the deep-dive phase
+        self.known_spells = dict()
+        self.spell_fail_chance = dict()
 
     def update(self):
         if 'You feel feverish.' in self.agent.message:

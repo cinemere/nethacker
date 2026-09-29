@@ -7,6 +7,7 @@ from nle.nethack import actions as A
 from . import objects as O
 from . import soko_solver
 from . import utils
+from . import hyp
 from .character import Character
 from .exceptions import AgentPanic
 from .glyph import Hunger, G, MON
@@ -24,6 +25,8 @@ class ItemPriority(ItemPriorityBase):
         self._drop_gold_till_turn = -float('inf')
 
     def _split(self, items, forced_items, weight_capacity):
+        if self.agent.global_logic.squeeze_cap:
+            weight_capacity = min(weight_capacity, SQUEEZE_WEIGHT_CAP)
         remaining_weight = weight_capacity
         ret_inv = {}
         for item in forced_items:
@@ -47,7 +50,9 @@ class ItemPriority(ItemPriorityBase):
 
             how_many_already_total = ret_inv.get(item, 0) + ret_bag.get(item, 0)
             how_many_already = ret.get(item, 0)
-            max_to_add = int(remaining_weight // item.unit_weight(with_content=False))
+            unit_weight = item.unit_weight(with_content=False)
+            # weightless items (e.g. wraith corpses) would make this an infinite count
+            max_to_add = item.count if unit_weight <= 0 else int(remaining_weight // unit_weight)
             if count is not None:
                 max_to_add = min(max_to_add, count)
             ret[item] = min(item.count, how_many_already_total + max_to_add) - (how_many_already_total - how_many_already)
@@ -63,6 +68,25 @@ class ItemPriority(ItemPriorityBase):
                 if item.category == nh.COIN_CLASS:
                     add_item(item)
 
+        def add_pick():
+            for item in items:
+                if item.is_unambiguous() and item.objs[0].name in ('pick-axe', 'dwarvish mattock') and \
+                        item.status != Item.CURSED:
+                    add_item(item)
+                    break
+
+        # squeezing through is only needed to get the pick back to the main dungeon, so under the
+        # squeeze cap it goes first
+        if self.agent.global_logic.squeeze_cap:
+            add_pick()
+        # hypothesis (pick_first): the digging tool is kept only after the weapon and armor, so when
+        # they fill the carrying capacity the pick is dropped -- 67 drops in 3,600 Rogue games, and in
+        # 148 games a Rogue held a pick yet never dug (score 0.057, as if it had none). A pick is worth
+        # more than anything else it could carry: keep it first, before weapon and armor.
+        elif any(i.is_unambiguous() and i.objs[0].name in ('pick-axe', 'dwarvish mattock') and
+                 i.status != Item.CURSED for i in items) and hyp.fire('pick_first', self.agent):
+            add_pick()
+
         for allow_unknown_status in [False, True]:
             item = self.agent.inventory.get_best_melee_weapon(items=forced_items + items,
                                                               allow_unknown_status=allow_unknown_status)
@@ -73,6 +97,10 @@ class ItemPriority(ItemPriorityBase):
                                                                allow_unknown_status=allow_unknown_status):
                 if item is not None:
                     add_item(item)
+
+        # a digging tool turns the rest of the game into a dive (Agent.dig_down), worth far more than
+        # anything else we could carry in its weight
+        add_pick()
 
         for item in items:
             if item.is_unambiguous():
@@ -150,10 +178,27 @@ class Milestone(IntEnum):
     GO_DOWN = auto() # TODO
 
 
+# experience level from which a character carrying a pick-axe skips the Dlvl 1 grind and digs down
+EARLY_DIG_XL = 5
+# turns a non-gnome, non-dwarf spends hunting the Mines' dwarves for a pick-axe after the Dlvl 1
+# grind before it gives up and dives by the stairs; 0 disables the hunt
+PICK_HUNT_TURNS = 3000
+# experience level the Dlvl 1 grind stops at before the deep phase begins
+GRIND_XL = 5
+# rogue_grind8: the Rogue's Dlvl 1 grind target
+ROGUE_GRIND_XL = 8
+# NetHack refuses a diagonal squeeze between two rock squares to anyone carrying more than 600
+SQUEEZE_WEIGHT_LIMIT = 600
+# the inventory budget once squeezing is needed, a little under the limit for weight misestimates
+SQUEEZE_WEIGHT_CAP = 580
+
+
 class GlobalLogic:
     def __init__(self, agent):
         self.agent = agent
         self.milestone = Milestone(1)
+        self._pick_hunt_start = None  # turn the Mines pick hunt began, if it did
+        self._grind_deeper_target = 1
         self.step_completion_log = {}  # Milestone -> (step, turn)
 
         self.item_priority = ItemPriority(self.agent)
@@ -163,7 +208,70 @@ class GlobalLogic:
 
         self._got_artifact = False
 
+        self.squeeze_cap = False  # carry at most SQUEEZE_WEIGHT_CAP (see _update_squeeze_cap)
+        self._squeeze_hits = 0
+        self._squeeze_check_turn = -float('inf')
+
+    def _update_squeeze_cap(self):
+        # hypothesis: a pick hunter that wins its digging tool in the Gnomish Mines often never turns
+        # it into a dive, stalling on a Mines level for 5k-20k turns and scoring only its Xp
+        # (~0.05-0.18) instead of the Dlvl 10-26 dive (0.13-0.5). Three things hold it there:
+        # 1. the bot fills its pack to its carrying capacity (usually 700-1000, and the pick adds
+        #    100-120), but NetHack forbids squeezing diagonally between two rock squares to anyone
+        #    carrying over 600, and the Mines' cave levels are full of such gaps, so the up stairs
+        #    are often unreachable. When a staircase of a Mines level stays reachable only by
+        #    squeezing, cap the pack below the limit (the pick first) for the rest of the Mines
+        #    visit, so the bot drops its least valued items and walks on (this method);
+        # 2. before heading for the stairs it first explores every corner of each item-strewn Mines
+        #    level, which with the fights and pickups along the way takes thousands of turns
+        #    (_leaving_mines_to_dig);
+        # 3. a dwarvish mattock is two-handed and cannot be applied under a shield, so a hunter
+        #    whose tool is a mattock tries to dig and fails on every square
+        #    (Inventory.get_best_armorset, Agent.pick_for_digging).
+        # Outside the Mines and without a digging tool nothing changes.
+        level = self.agent.current_level()
+        if level.dungeon_number != Level.GNOMISH_MINES:
+            self.squeeze_cap = False
+            self._squeeze_hits = 0
+            return
+        if self.squeeze_cap or self.agent.inventory.items.total_weight <= SQUEEZE_WEIGHT_LIMIT:
+            return
+        turn = self.agent.blstats.time
+        if turn - self._squeeze_check_turn < 10:
+            return
+        self._squeeze_check_turn = turn
+        only_squeezing = (self.agent.bfs(can_squeeze=True) != -1) & (self.agent.bfs(can_squeeze=False) == -1)
+        # a monster standing in a gap looks the same, and exploring may still turn up another way
+        # around, so the cut-off has to persist for a while
+        if (only_squeezing & utils.isin(level.objects, G.STAIR_UP, G.STAIR_DOWN)).any():
+            self._squeeze_hits += 1
+        else:
+            self._squeeze_hits = 0
+        if self._squeeze_hits >= 50:
+            self.squeeze_cap = True
+
+    def _leaving_mines_to_dig(self):
+        # (see _update_squeeze_cap) with the digging tool in hand the Mines level has nothing left
+        # to offer: walk straight back to the main dungeon rather than first exploring every corner
+        # of this item-strewn cave level, which with fights and pickups can take thousands of turns
+        return self.milestone == Milestone.GO_DOWN and \
+               self.agent.current_level().dungeon_number == Level.GNOMISH_MINES and \
+               self.agent.pick_for_digging() is not None
+
+    def _fast_descent(self):
+        # hypothesis (fast_descent): 65% of Rogue games never get a digging tool and average ~0.04;
+        # on the way down they clear every level before taking the stairs -- ~770 turns per level of
+        # hunger and fights. Score is the deepest level reached and death costs nothing, so without a
+        # pick look only for the down staircase (Rogues are stealthy: sleepers stay asleep) and take
+        # it; the heal-before-moving-on exploration below is kept. (Komershan did this for gnomes.)
+        return self.milestone == Milestone.GO_DOWN and \
+               self.agent.character.role == Character.ROGUE and \
+               self.agent.current_level().dungeon_number == Level.DUNGEONS_OF_DOOM and \
+               self.agent.pick_for_digging() is None and \
+               hyp.fire('fast_descent', self.agent)
+
     def update(self):
+        self._update_squeeze_cap()
         if not self.agent.character.prop.hallu:
             if utils.isin(self.agent.glyphs, G.ORACLE).any():
                 if self.oracle_level is None:
@@ -397,7 +505,8 @@ class GlobalLogic:
             candidate = self.agent.inventory.move_to_inventory(candidate)
             self.agent.step(A.Command.DIP)
             self.agent.type_text(self.agent.inventory.items.get_letter(candidate))
-            if 'What do you want to dip ' in self.agent.message and 'into?' in self.agent.message:
+            if ('What do you want to dip ' in self.agent.message and 'into?' in self.agent.message) or \
+                    "You don't have anything to dip " in self.agent.message:
                 raise AgentPanic('no fountain here')
 
     def can_sacrify(self, item):
@@ -509,19 +618,57 @@ class GlobalLogic:
 
         self.agent.go_to(y, x, stop_one_before=True)
 
+    def _grind_deeper_level(self):
+        # hypothesis (grind_deeper): Dlvl 2-3 supply fresh monsters and corpses
+        # while targeting the main dungeon instead of the Mines. Stay shallow
+        # through XL 2, descend with >=80% HP (and at least 12 HP), and retreat
+        # below half HP or 10 HP. Keep the target while traveling so a small hit
+        # does not cancel descent; level drain also lowers the depth ceiling.
+        stats = self.agent.blstats
+        if self.agent.character.role != Character.ROGUE or not 3 <= stats.experience_level < GRIND_XL:
+            return 1
+        if stats.hitpoints < max(10, 0.5 * stats.max_hitpoints):
+            return 1
+        desired = int(stats.experience_level) - 1  # Dlvl 2 at XL 3, Dlvl 3 at XL 4
+        if stats.hitpoints >= max(12, 0.8 * stats.max_hitpoints):
+            return desired
+        return min(self._grind_deeper_target, desired)
+
     @Strategy.wrap
     def current_strategy(self):
         yield True
+        idle_iterations = 0
         while 1:
             explore_stairs_condition = lambda: False
+            deeper_grind = False
             if self.milestone == Milestone.BE_ON_FIRST_LEVEL:
-                # hypothesis: Tourists that have reached XL7 gain more progression by descending for
-                # richer fights than by spending thousands more turns farming dungeon level 1 for XL8.
-                condition = lambda: self.agent.blstats.experience_level >= \
-                    (7 if self.agent.character.role == Character.TOURIST else 8)
+                # hypothesis (grind_starve, shadow): a character with nothing to eat and no safe
+                # prayer left starves on the Dlvl 1 grind; logged to see how often, not acted on
+                # hypothesis (rogue_grind8, after Komershan 5deb412): a Rogue leaving Dlvl 1 at XL 5
+                # dies on Dlvl 2-4 before it meets a single dwarf in 95 of 300 games (half of them
+                # fainting on the way); the pick hunt needs a sturdier character. Grinding on to XL 8
+                # roughly doubles HP and banks Xp:8 = 0.075, above the 0.03-0.05 those games score now.
+                # A Rogue with a pick still digs from EARLY_DIG_XL.
+                condition = lambda: (self.agent.blstats.experience_level >= GRIND_XL and not (
+                    self.agent.character.role == Character.ROGUE and
+                    self.agent.blstats.experience_level < ROGUE_GRIND_XL and
+                    hyp.fire('rogue_grind8', self.agent))) or (
+                    self.agent.blstats.hunger_state >= Hunger.WEAK and
+                    self.agent.inventory.items.total_nutrition() == 0 and
+                    not self.agent.is_safe_to_pray(1000) and
+                    hyp.fire('grind_starve', self.agent))
                 # explore_stairs_condition = lambda: self.agent.inventory.items.total_nutrition() == 0 and \
                 #                                    self.agent.blstats.hunger_state >= Hunger.NOT_HUNGRY
                 level = (Level.DUNGEONS_OF_DOOM, 1)
+                grind_level = self._grind_deeper_level()
+                if self.agent.character.role == Character.ROGUE and \
+                        3 <= self.agent.blstats.experience_level < GRIND_XL and \
+                        (grind_level != 1 or self._grind_deeper_target != grind_level or
+                         self.agent.current_level().key() != level) and \
+                        hyp.fire('grind_deeper', self.agent, target=grind_level):
+                    deeper_grind = True
+                    self._grind_deeper_target = grind_level
+                    level = (Level.DUNGEONS_OF_DOOM, grind_level)
 
             elif self.milestone == Milestone.FIND_SOKOBAN:
                 condition = lambda: self.agent.current_level().dungeon_number == Level.SOKOBAN
@@ -543,6 +690,14 @@ class GlobalLogic:
             elif self.milestone == Milestone.FIND_MINETOWN:
                 condition = lambda: self.minetown_level is not None
                 level = (Level.GNOMISH_MINES, 4)  # TODO
+                # hypothesis (mines_shallow_hunt): a non-gnome hunting for a pick walks down to
+                # Minetown (Dlvl 5-8) through levels of hostile armed gnomes and dwarves, and most
+                # Rogues die there at XL 5-7 before any pick turns up; the first two Mines levels
+                # hold dwarves too. Hunt only there until PICK_HUNT_TURNS runs out.
+                if self._pick_hunt_start is not None and \
+                        self.agent.character.role == Character.ROGUE and \
+                        hyp.fire('mines_shallow_hunt', self.agent):
+                    level = (Level.GNOMISH_MINES, 2)
 
             elif self.milestone == Milestone.SOLVE_SOKOBAN:
                 # TODO: fix the condition, monster can destroy doors
@@ -551,7 +706,10 @@ class GlobalLogic:
                 level = (Level.SOKOBAN, 1)
 
             elif self.milestone == Milestone.FIND_MINES_END:
-                condition = lambda: self.agent.current_level().key() == (Level.GNOMISH_MINES, 9)  # TODO
+                # the Mines are 8 or 9 levels deep, so waiting for level 9 left every 8-level Mines
+                # stuck at its bottom forever; level 8 is the bottom or one short of it
+                condition = lambda: self.agent.current_level().dungeon_number == Level.GNOMISH_MINES and \
+                                    self.agent.current_level().level_number >= 8
                 level = (Level.GNOMISH_MINES, 9)  # TODO
 
             else:
@@ -559,7 +717,50 @@ class GlobalLogic:
                 condition = lambda: False
                 level = (Level.DUNGEONS_OF_DOOM, 100)
 
+            # a character that can dig heads straight down instead of grinding on Dlvl 1 (see
+            # Agent.dig_down); otherwise the Dlvl 1 milestone walks it back up after every hole
+            if self.milestone < Milestone.GO_DOWN and \
+                    self.agent.blstats.experience_level >= EARLY_DIG_XL and \
+                    self.agent.pick_for_digging() is not None:
+                self.milestone = Milestone.GO_DOWN
+                continue
+
+            # a pick hunt in the upper Mines that has not paid off: dive by the stairs instead
+            if self.milestone in (Milestone.FIND_GNOMISH_MINES, Milestone.FIND_MINETOWN) and \
+                    self._pick_hunt_start is not None and \
+                    self.agent.blstats.time - self._pick_hunt_start > PICK_HUNT_TURNS:
+                self.milestone = Milestone.GO_DOWN
+                continue
+
             if condition():
+                # hypothesis: after the Dlvl 1 grind to Xp 8 the deep phase heads into the Gnomish
+                # Mines. For a gnome that is a safe road (most of the gnomes, dwarves and hill orcs
+                # there are peaceful to it), but for any other race it is a gauntlet of hostile
+                # packs on open cave levels that also bottom out at Mines' End (Dlvl 10-13), capping
+                # the depth milestones -- the best-scoring part of the score. Non-gnomes instead
+                # descend the main Dungeons of Doom (stairs, plus dig_down with any digging tool):
+                # room-and-corridor levels where fights come one at a time and no floor until
+                # Medusa. The switch happens only at the Xp 8 hand-off, so the grind is untouched.
+                # Exception: races the Mines' dwarves are hostile to go there first, only as far
+                # as Minetown, to kill dwarves for the pick-axe most of them carry -- with a pick
+                # the milestone above switches to GO_DOWN and dig_down takes over in the main
+                # dungeon. Dwarves and gnomes find those dwarves peaceful, so they skip the hunt and
+                # instead walk the peaceful Mines straight to Mines' End (Dlvl 10-13), skipping the
+                # long and risky Sokoban detour, before diving the main dungeon.
+                mines_folk = self.agent.character.race in (Character.GNOME, Character.DWARF)
+                if self.milestone == Milestone.BE_ON_FIRST_LEVEL and not mines_folk:
+                    if PICK_HUNT_TURNS > 0:
+                        self._pick_hunt_start = self.agent.blstats.time
+                        self.milestone = Milestone.FIND_GNOMISH_MINES
+                    else:
+                        self.milestone = Milestone.GO_DOWN
+                    continue
+                if self.milestone == Milestone.FIND_MINETOWN and self._pick_hunt_start is not None:
+                    self.milestone = Milestone.GO_DOWN
+                    continue
+                if self.milestone == Milestone.FIND_MINETOWN and mines_folk:
+                    self.milestone = Milestone.FIND_MINES_END
+                    continue
                 self.milestone = Milestone(int(self.milestone) + 1)
                 continue
 
@@ -594,19 +795,51 @@ class GlobalLogic:
                     .until(self.agent, lambda: (self.agent.blstats.y, self.agent.blstats.x) == (y, x))
                 )
 
+            step_count_before = self.agent.step_count
+            # hypothesis (grind_deeper): interrupt a long search when XL/HP makes
+            # a different grind level appropriate. Do not advance the milestone:
+            # XL 5 still starts the existing pick hunt / digging phase.
+            def grind_target_changed():
+                return self.milestone == Milestone.BE_ON_FIRST_LEVEL and \
+                    self._grind_deeper_level() != level[1] and \
+                    hyp.fire('grind_deeper', self.agent,
+                             target=self._grind_deeper_level(), event='retarget')
+
+            def explore_before_travel():
+                # hypothesis (grind_deeper): once ready, use the stairs instead
+                # of spending the food budget finishing the old level's search.
+                return not (deeper_grind and self.agent.current_level().key() != level)
+
             (
                 self.agent.exploration.go_to_level_strategy(*level, go_to_strategy, exploration_strategy(None))
                 .before(exploration_strategy(None))#.before(self.agent.exploration.patrol())
                 .preempt(self.agent, [
-                    exploration_strategy(0),
+                    exploration_strategy(0).condition(
+                        lambda: not self._leaving_mines_to_dig() and explore_before_travel() and
+                        not self._fast_descent()),
                     exploration_strategy(None).until(
                         self.agent, lambda: self.agent.blstats.hitpoints >= 0.8 * self.agent.blstats.max_hitpoints)
+                    .condition(explore_before_travel)
                 ])
                 .preempt(self.agent, [
                     self.agent.exploration.explore_stairs(go_to_strategy, all=True).condition(explore_stairs_condition),
                 ])
-                .until(self.agent, condition)
+                .until(self.agent, lambda: condition() or grind_target_changed())
             ).run()
+
+            # hypothesis (see Agent.handle_exception): once the current level is fully explored and
+            # searched, every sub-strategy declines without acting while the milestone condition (e.g.
+            # Xp8 on Dlvl 1) is still unmet, so this loop spins forever without a single game action --
+            # the agent hangs, the game idles until the no-progress timeout and the run's remaining
+            # progress is forfeited. After many consecutive action-less passes, search in place so
+            # game time passes (monsters spawn and come to us, XP keeps growing) instead of hanging.
+            if self.agent.step_count == step_count_before:
+                idle_iterations += 1
+                if idle_iterations >= 20:
+                    idle_iterations = 0
+                    self.agent.search(10)
+            else:
+                idle_iterations = 0
 
     def global_strategy(self):
         return (
@@ -633,6 +866,9 @@ class GlobalLogic:
                 self.agent.eat_from_inventory().every(5),
             ])
             .preempt(self.agent, [
+                self.agent.elbereth_rest(),
+            ])
+            .preempt(self.agent, [
                 self.follow_guard(),
             ])
             .preempt(self.agent, [
@@ -642,6 +878,12 @@ class GlobalLogic:
                 self.agent.engulfed_fight(),
             ])
             .preempt(self.agent, [
+                self.agent.proactive_sleep_strategy(),
+            ])
+            .preempt(self.agent, [
                 self.agent.emergency_strategy(),
+            ])
+            .preempt(self.agent, [
+                self.agent.dig_down(),
             ])
         )

@@ -7,10 +7,10 @@ import nle.nethack as nh
 import numpy as np
 from nle.nethack import actions as A
 
-from autoascend import objects as O, utils
+from autoascend import objects as O, utils, hyp
 from autoascend.character import Character
 from autoascend.exceptions import AgentPanic
-from autoascend.glyph import G
+from autoascend.glyph import G, MON
 from autoascend.item import ItemManager, Item, ContainerContent, check_if_triggered_container_trap, \
     find_equivalent_item, flatten_items
 from autoascend.item.inventory_items import InventoryItems
@@ -121,6 +121,26 @@ class Inventory:
 
         if (self.items.main_hand is not None and self.items.main_hand.status == Item.CURSED) or \
                 (item is not None and item.objs[0].bi and self.items.off_hand is not None):
+            return False
+
+        # hypothesis (no_blind_wield): untested weapons can weld a Rogue's hand
+        # shut before a pick is found. Check the original description here only:
+        # the parser promotes UNKNOWN to UNCURSED for inventory selection.
+        # NetHack omits "uncursed" on identified weapons with a visible modifier.
+        if self.agent.character.role == Character.ROGUE and \
+                item is not None and item.is_weapon() and item.modifier is None and \
+                ItemManager.parse_text(item.text, item.category)[3] == Item.UNKNOWN and \
+                hyp.fire('no_blind_wield', self.agent, weapon=item.objs[0].name):
+            # Inventory priorities may already have dropped the starting sword.
+            # For a melee swap, fall back to a known carried weapon (e.g. the
+            # starting daggers). Do not change pickup or retention rankings.
+            if not item.is_launcher():
+                known_weapons = [i for i in flatten_items(self.items) if i.is_weapon() and
+                                 (i.modifier is not None or
+                                  ItemManager.parse_text(i.text, i.category)[3] != Item.UNKNOWN)]
+                fallback = self.get_best_melee_weapon(items=known_weapons)
+                if fallback is not None and fallback != self.items.main_hand:
+                    return self.wield(fallback)
             return False
 
         with self.agent.atom_operation():
@@ -484,6 +504,13 @@ class Inventory:
                                 "You don't feel anything in here to pick up." in self.agent.message:
                             items = []
                             letters = []
+                        elif re.search('You have [a-z ]+ lifting ', self.agent.message) and \
+                                'Continue?' in self.agent.message:
+                            # only one object here can be picked up (e.g. the iron chain attached to the
+                            # ball is skipped), so PICKUP tries to lift it at once. It is too heavy anyway.
+                            self.agent.step(A.Command.ESC)
+                            items = []
+                            letters = []
                         else:
                             assert 0, (self.agent.message, self.agent.popup)
                     else:
@@ -660,6 +687,10 @@ class Inventory:
         return self.eat(item, quaff=True, smart=smart)
 
     def eat(self, item, quaff=False, smart=True):
+        if not quaff and item.is_corpse() and self.agent.character.role == Character.MONK and \
+                ord(MON.permonst(item.monster_id).mlet) not in \
+                [MON.S_BLOB, MON.S_JELLY, MON.S_FUNGUS]:
+            self.agent._monk_meat_meals += 1
         if smart:
             if not quaff and item in self.items_below_me:
                 with self.agent.atom_operation():
@@ -792,10 +823,18 @@ class Inventory:
             items = self.items
         items = flatten_items(items)
 
+        # "You cannot swing a two-handed weapon while wearing a shield": when our only digging tool
+        # is a dwarvish mattock, go without a shield so Agent.dig_down can apply it (see
+        # GlobalLogic._update_squeeze_cap)
+        pick = self.agent.pick_for_digging()
+        no_shield = pick is not None and pick.objs[0].name == 'dwarvish mattock'
+
         best_items = [None] * O.ARM_NUM
         best_ac = [None] * O.ARM_NUM
         for item in items:
             if not item.is_armor() or not item.is_unambiguous():
+                continue
+            if no_shield and item.object.sub == O.ARM_SHIELD:
                 continue
 
             # TODO: consider other always allowed items than dragon hide
@@ -835,6 +874,36 @@ class Inventory:
                 self.check_containers(),
             ])).repeat()
         )
+
+    # drop memory for drop_memory / loop_guard: (level key, y, x, item key) -> [(turn, capacity), ...]
+    @staticmethod
+    def _item_key(item):
+        return tuple(sorted(o.name for o in item.objs))
+
+    def _item_key_str(self, item):
+        return '|'.join(self._item_key(item))[:60]
+
+    def _drop_log(self):
+        if not hasattr(self, '_dropped'):
+            self._dropped = {}
+        return self._dropped
+
+    def _here(self, item):
+        return (self.agent.current_level().key(), int(self.agent.blstats.y), int(self.agent.blstats.x), self._item_key(item))
+
+    def _remember_drops(self, items):
+        log = self._drop_log()
+        for item in items:
+            log.setdefault(self._here(item), []).append((int(self.agent.blstats.time), self.agent.character.carrying_capacity))
+
+    def _drops_here(self, item, window):
+        now = self.agent.blstats.time
+        return sum(1 for t, _ in self._drop_log().get(self._here(item), []) if now - t <= window)
+
+    def _recently_dropped(self, item, window):
+        now = self.agent.blstats.time
+        entries = [(t, cap) for t, cap in self._drop_log().get(self._here(item), []) if now - t <= window]
+        return bool(entries) and self.agent.character.carrying_capacity <= max(cap for _, cap in entries) + 50
 
     @utils.debug_log('inventory.arrange_items')
     @Strategy.wrap
@@ -884,10 +953,19 @@ class Inventory:
             counts = item_split[None]
             indices = [i for i, item in enumerate(free_items) if
                        item in self.items.all_items and counts[i] != item.count]
+            # hypothesis (loop_guard): the split is recomputed from scratch every step and depends on
+            # where an item lies (inventory vs floor), so an item can be dropped and picked back up
+            # forever (a pick-axe 49 times in a row until the no-progress limit). An item this spot has
+            # seen dropped twice within 40 turns is kept instead of being dropped a third time.
+            if indices:
+                frozen = [i for i in indices if self._drops_here(free_items[i], 40) >= 2]
+                if frozen and hyp.fire('loop_guard', self.agent, items=[self._item_key_str(free_items[i]) for i in frozen]):
+                    indices = [i for i in indices if i not in frozen]
             if indices:
                 if not yielded:
                     yielded = True
                     yield True
+                self._remember_drops([free_items[i] for i in indices])
                 assert self.drop([free_items[i] for i in indices], [free_items[i].count - counts[i] for i in indices],
                                  smart=False)
                 continue
@@ -928,6 +1006,13 @@ class Inventory:
             to_pickup = np.array([counts[len(free_items):] for counts in item_split.values()]).sum(0)
             assert len(to_pickup) == len(items_below_me)
             indices = [i for i, item in enumerate(items_below_me) if to_pickup[i] > 0 and item in self.items_below_me]
+            # hypothesis (drop_memory): the same stateless split that just dropped an item wants it back
+            # once it lies on the floor. Remember what was dropped where; do not pick it back up within
+            # 300 turns unless the carrying capacity has grown since (then the drop reason may be gone).
+            if indices:
+                recent = [i for i in indices if self._recently_dropped(items_below_me[i], 300)]
+                if recent and hyp.fire('drop_memory', self.agent, items=[self._item_key_str(items_below_me[i]) for i in recent]):
+                    indices = [i for i in indices if i not in recent]
             if len(indices) > 0:
                 assert self.items.free_slots() > 0
                 indices = indices[:self.items.free_slots()]
@@ -1328,7 +1413,14 @@ class Inventory:
         self.item_manager.price_identification()
         if self.agent.current_level().shop_interior[self.agent.blstats.y, self.agent.blstats.x]:
             yield False
-        if len(self.items_below_me) == 0:
+        if len(self.items_below_me) == 0 and not self.over_squeeze_cap():
             yield False
 
         yield from self.arrange_items().strategy()
+
+    def over_squeeze_cap(self):
+        # see GlobalLogic._update_squeeze_cap: drop down to the cap right where we stand
+        from autoascend.global_logic import SQUEEZE_WEIGHT_LIMIT
+        return self.agent.global_logic.squeeze_cap and \
+               self.items.total_weight > SQUEEZE_WEIGHT_LIMIT and \
+               any(i.can_be_dropped_from_inventory() for i in flatten_items(self.items))
