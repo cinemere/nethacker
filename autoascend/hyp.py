@@ -36,6 +36,10 @@ MODES = {
     'fast_descent': {'rog-orc': 'on'},
     'medusa_nohang': {'rog': 'on'},
     'dry_dig': 'off',
+    'pit_continue': {'rog': 'on'},
+    'late_pray': 'off',
+    'pray_once_angry': 'off',
+    'faint_camp': 'off',
 }
 
 _CONFIG = os.environ.get('HYP_CONFIG', '/hyp/config.json')

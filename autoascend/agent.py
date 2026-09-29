@@ -60,6 +60,9 @@ class Agent:
         self.last_bfs_step = None
         self.last_prayer_turn = None
         self._prayer_blocked_until = None  # pray_backoff: no prayer before this turn
+        self._prayer_failed = False  # pray_once_angry: a prayer was answered displeased/angry
+        self._fainting_since = None  # late_pray: first turn of the current Fainting spell
+        self._hunger_pray_held = None  # late_pray: last turn a hunger prayer was held back
         self._monk_meat_meals = 0
         self._previous_glyphs = None
         self._last_turn = -1
@@ -372,6 +375,8 @@ class Agent:
     def _note_prayer_outcome(self, message):
         if not message or self.last_prayer_turn is None:
             return
+        if any(m in message for m in self._PRAYER_ANGRY + self._PRAYER_DISPLEASED):
+            self._prayer_failed = True
         if any(m in message for m in self._PRAYER_ANGRY):
             self._prayer_blocked_until = float('inf')
         elif any(m in message for m in self._PRAYER_DISPLEASED):
@@ -770,6 +775,11 @@ class Agent:
         # smiting -- in the rog replays a hunger prayer 400 turns after the last one came back
         # "displeased", and the next one "Thou art arrogant" drained a level and left the Rogue
         # fainting until a gecko killed it. Hold prayer while Luck is still down / the god is angry.
+        # hypothesis (pray_once_angry): a prayer answered "displeased" came too soon (pray.c p_type 0:
+        # Luck -3 and gods_upset, u.ugangr++) or while naughty; the god stays angry until appeased by
+        # sacrifice, every later prayer is refused and angrygods() can drain a level or send a minion.
+        if safe and self._prayer_failed and hyp.fire('pray_once_angry', self):
+            return False
         if safe and self._prayer_blocked_until is not None and \
                 self.blstats.time < self._prayer_blocked_until and \
                 hyp.fire('pray_backoff', self, blocked_until=str(self._prayer_blocked_until)):
@@ -1578,11 +1588,27 @@ class Agent:
 
         # low HP is only "major trouble" to the god at HP <= 5 or HP <= max/7 (pray.c in_trouble);
         # above that the prayer is answered "displeased", fixes nothing and burns the timeout
-        should_pray = (
-                (self.is_safe_to_pray(500) and
-                 (self.blstats.hitpoints * 7 <= self.blstats.max_hitpoints or self.blstats.hitpoints <= 5))
-                or (self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING)
-        )
+        hp_pray = self.is_safe_to_pray(500) and \
+            (self.blstats.hitpoints * 7 <= self.blstats.max_hitpoints or self.blstats.hitpoints <= 5)
+        hunger_pray = self.is_safe_to_pray(400) and self.blstats.hunger_state >= Hunger.FAINTING
+        if self.blstats.hunger_state >= Hunger.FAINTING:
+            if self._fainting_since is None:
+                self._fainting_since = self.blstats.time
+        else:
+            self._fainting_since = None
+        # hypothesis (late_pray): the prayer timeout after a prayer is rnz(350); in 4,260 archived games
+        # a hunger prayer fails (no shimmering light) 73% of the time <500 turns after the last prayer,
+        # 17% at 500-799, 11% at 800-1099, 7% at 1100-1499, 3% at 1500+, and one failure angers the god
+        # for good. When the last prayer is recent, hold the hunger prayer for up to 300 Fainting turns
+        # (faint_camp keeps the Rogue on Elbereth meanwhile; alone, late_pray died of faints).
+        if hunger_pray and not hp_pray and self.last_prayer_turn is not None and \
+                self.blstats.time - self.last_prayer_turn < 1300 and \
+                self.blstats.time - self._fainting_since < 300 and \
+                hyp.fire('late_pray', self, gap=int(self.blstats.time - self.last_prayer_turn),
+                         fainting=int(self.blstats.time - self._fainting_since)):
+            hunger_pray = False
+            self._hunger_pray_held = self.blstats.time
+        should_pray = hp_pray or hunger_pray
         # hypothesis (weak_pray): Weak is already major trouble in pray.c, yet the hunger prayer waited
         # for Fainting -- and a fainting character is helpless for turns at a time (the rog replays
         # die to newts and geckos mid-faint). With no food to eat, pray at Weak, but only once the
@@ -1726,6 +1752,31 @@ class Agent:
     def _elbereth_rest_unsafe(self):
         # anything in view that Elbereth does not hold off (@, minotaurs, unseen attackers)
         return any(not self._respects_elbereth(mon) for _, _, _, mon, _ in self.get_visible_monsters())
+
+    @utils.debug_log('faint_camp')
+    @Strategy.wrap
+    def faint_camp(self):
+        # hypothesis (faint_camp): 68/102 Dlvl 1 deaths and ~35/95 hunt/descent deaths come while
+        # Fainting, to newts, rats and jackals that only kill a helpless Rogue. While late_pray holds
+        # a too-early hunger prayer, stand on a dust Elbereth (every Dlvl 1-4 monster but @ and
+        # minotaurs respects it) and search in place instead of walking into fights while fainting.
+        def holding():
+            return self._hunger_pray_held is not None and self.blstats.time - self._hunger_pray_held <= 3 and \
+                self.blstats.hunger_state >= Hunger.FAINTING
+        if not holding() or not self.can_engrave() or self._elbereth_rest_unsafe() or \
+                not hyp.fire('faint_camp', self):
+            yield False
+        yield True
+        if (self.inventory.engraving_below_me or '').lower() != 'elbereth':
+            if not self.engrave('Elbereth'):
+                return
+        for _ in range(20):
+            self.inventory.get_items_below_me()
+            if (self.inventory.engraving_below_me or '').lower() != 'elbereth' or \
+                    self.blstats.hunger_state < Hunger.FAINTING or self._elbereth_rest_unsafe():
+                break
+            self.search(5)
+            return
 
     @utils.debug_log('elbereth_rest')
     @Strategy.wrap
@@ -1913,8 +1964,15 @@ class Agent:
             yield False
             return
         y, x = self.blstats.y, self.blstats.x
-        if (self.current_level().objects[y, x] not in G.FLOOR and not dry_pit) or \
-                self.current_level().objects[y, x] in G.DOORS:
+        glyph = self.current_level().objects[y, x]
+        # hypothesis (pit_continue): NetHack ends the first dig occupation when the pit forms, and a
+        # terrain refresh then caches S_pit, which is not in G.FLOOR -- so the bot crawled out and dug a
+        # fresh pit elsewhere from zero effort (829/1,282 digging games, ~15-20 turns per level).
+        # Continue on our own pit square; every other rule (shop, Elbereth, attempts) still applies.
+        if glyph in G.DOORS or not (glyph in G.FLOOR or dry_pit or (
+                glyph in (SS.S_pit, SS.S_spiked_pit) and
+                hyp.fire('pit_continue', self, cached_glyph=int(glyph), y=int(y), x=int(x),
+                         level=[int(v) for v in self.current_level().key()]))):
             yield False
             return
         # falling out of a shop hands the whole pack, pick included, to the shopkeeper

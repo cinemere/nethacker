@@ -866,6 +866,7 @@ class GlobalLogic:
                 self.agent.eat_from_inventory().every(5),
             ])
             .preempt(self.agent, [
+                self.agent.faint_camp(),
                 self.agent.elbereth_rest(),
             ])
             .preempt(self.agent, [
